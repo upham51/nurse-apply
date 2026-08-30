@@ -82,11 +82,20 @@ header.masthead {
 .panel-body { padding: 4px 20px 20px; border-top: 1px solid var(--line); }
 
 .grid { display: grid; gap: 14px; grid-template-columns: repeat(12, 1fr); }
-.col-2 { grid-column: span 2; } .col-3 { grid-column: span 3; }
-.col-4 { grid-column: span 4; } .col-6 { grid-column: span 6; }
-.col-8 { grid-column: span 8; } .col-12 { grid-column: span 12; }
+/* Every span, so a class like col-5 does not silently collapse to one column. */
+.col-1 { grid-column: span 1; }  .col-2 { grid-column: span 2; }
+.col-3 { grid-column: span 3; }  .col-4 { grid-column: span 4; }
+.col-5 { grid-column: span 5; }  .col-6 { grid-column: span 6; }
+.col-7 { grid-column: span 7; }  .col-8 { grid-column: span 8; }
+.col-9 { grid-column: span 9; }  .col-10 { grid-column: span 10; }
+.col-11 { grid-column: span 11; } .col-12 { grid-column: span 12; }
+@media (max-width: 900px) {
+  .col-1, .col-2, .col-3 { grid-column: span 4; }
+  .col-4, .col-5 { grid-column: span 6; }
+}
 @media (max-width: 720px) {
-  .col-2, .col-3, .col-4, .col-6, .col-8 { grid-column: span 12; }
+  .col-1, .col-2, .col-3, .col-4, .col-5, .col-6,
+  .col-7, .col-8, .col-9, .col-10, .col-11 { grid-column: span 12; }
 }
 
 label.field { display: block; }

@@ -64,9 +64,136 @@
   function render() {
     if (!state) return;
     renderSummary();
-    renderSwap();
     renderIssues();
+    renderIdentity();
+    renderCredentials();
+    renderEducation();
+    renderSkills();
+    renderSwap();
     renderRoles();
+  }
+
+  /* --------------------------------------------------- everything it read */
+
+  function heading(text, hint) {
+    const h = el('h4', { text });
+    if (hint) {
+      const s2 = el('span', { text: '  ' + hint });
+      s2.style.fontWeight = '400';
+      s2.style.color = 'var(--ink-faint)';
+      s2.style.fontSize = '12px';
+      h.appendChild(s2);
+    }
+    return h;
+  }
+
+  function renderIdentity() {
+    const c = $('#review-identity');
+    c.textContent = '';
+    const id = state.profile.identity || {};
+    const addr = id.address || {};
+    c.appendChild(heading('You'));
+    c.appendChild(el('div', { class: 'grid' }, [
+      textField(id, 'firstName', 'First name', 3),
+      textField(id, 'lastName', 'Last name', 3),
+      textField(id, 'email', 'Email', 6),
+      textField(id, 'phone', 'Phone', 3),
+      textField(addr, 'street', 'Street', 5),
+      textField(addr, 'city', 'City', 2),
+      textField(addr, 'state', 'State', 1),
+      textField(addr, 'zip', 'ZIP', 1)
+    ]));
+  }
+
+  function renderCredentials() {
+    const c = $('#review-credentials');
+    c.textContent = '';
+    const licenses = state.profile.licenses || [];
+    const certs = state.profile.certifications || [];
+
+    c.appendChild(heading('Licenses', licenses.length ? '' : 'none found on the resume'));
+    if (!licenses.length) {
+      c.appendChild(el('p', { class: 'note', text: 'Add these by hand after the import. Portals will not accept an application without one.' }));
+    }
+    licenses.forEach((l, i) => {
+      c.appendChild(el('div', { class: 'grid' }, [
+        textField(l, 'type', 'Type', 2),
+        textField(l, 'state', 'State', 2),
+        textField(l, 'number', 'Number', 4),
+        textField(l, 'expirationDate', 'Expires', 3),
+        checkField(l, 'isCompact', 'Compact', 1),
+        removeButton(licenses, i, 'license')
+      ]));
+    });
+
+    c.appendChild(heading('Certifications', certs.length ? '' : 'none found on the resume'));
+    if (!certs.length) {
+      c.appendChild(el('p', { class: 'note', text: 'Nearly every posting requires BLS, and most acute-care roles want ACLS.' }));
+    }
+    certs.forEach((cert, i) => {
+      c.appendChild(el('div', { class: 'grid' }, [
+        textField(cert, 'name', 'Certification', 3),
+        textField(cert, 'otherName', 'Full name', 4),
+        textField(cert, 'issuingBody', 'Issued by', 2),
+        textField(cert, 'expirationDate', 'Expires', 2),
+        removeButton(certs, i, 'certification')
+      ]));
+    });
+  }
+
+  function renderEducation() {
+    const c = $('#review-education');
+    c.textContent = '';
+    const list = state.profile.education || [];
+    c.appendChild(heading('Education', list.length ? '' : 'none found on the resume'));
+    list.forEach((e, i) => {
+      c.appendChild(el('div', { class: 'grid' }, [
+        textField(e, 'degree', 'Degree', 2),
+        textField(e, 'school', 'School', 6),
+        textField(e, 'city', 'City', 2),
+        textField(e, 'graduationDate', 'Graduated', 2),
+        removeButton(list, i, 'school')
+      ]));
+    });
+  }
+
+  function renderSkills() {
+    const c = $('#review-skills');
+    c.textContent = '';
+    const s2 = state.profile.clinicalSkills || {};
+    const emr = s2.emrSystems || [];
+    const procedures = s2.procedures || [];
+    const languages = (s2.languages || []).map((l) => l.language).filter(Boolean);
+    if (!emr.length && !procedures.length && !languages.length) return;
+
+    c.appendChild(heading('Skills'));
+    const line = (label, values) => {
+      if (!values.length) return null;
+      return el('p', { class: 'note', style: 'margin:0 0 6px' }, [
+        el('strong', { text: label + ': ' }),
+        document.createTextNode(values.join(', '))
+      ]);
+    };
+    [line('EMR systems', emr), line('Procedures', procedures), line('Languages', languages)]
+      .forEach((n) => { if (n) c.appendChild(n); });
+    c.appendChild(el('p', { class: 'note', style: 'margin-top:6px',
+      text: 'Edit these in the Skills and EMR section after the import.' }));
+  }
+
+  function checkField(obj, key, label, col) {
+    const input = el('input', { type: 'checkbox' });
+    input.checked = !!obj[key];
+    input.addEventListener('change', () => { obj[key] = input.checked; });
+    return el('label', { class: 'check col-' + col }, [input, el('span', { text: label })]);
+  }
+
+  function removeButton(list, i, what) {
+    return el('div', { class: 'col-12 row-actions' }, [
+      el('button', {
+        class: 'small ghost', text: 'Remove this ' + what,
+        onclick: () => { list.splice(i, 1); render(); }
+      })
+    ]);
   }
 
   function renderSummary() {
@@ -97,7 +224,9 @@
     const first = roles.find((r) => r.employer || r.title);
     if (!first) return;
 
-    c.appendChild(el('h4', { text: 'Does this look right?' }));
+    c.appendChild(heading('Jobs', roles.length + (roles.length === 1 ? ' found' : ' found')));
+    c.appendChild(el('p', { class: 'note', style: 'margin:0 0 10px',
+      text: 'Employer and title are the pair that goes wrong most often, so check the first one.' }));
     const table = el('div', { class: 'grid' }, [
       el('label', { class: 'field col-6' }, [
         el('span', { class: 'lab', text: 'Employer' }),

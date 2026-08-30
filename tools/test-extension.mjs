@@ -153,6 +153,34 @@ if (importPath.ok) {
     ? ok('says nothing is saved yet')
     : bad('the summary does not say the import is unsaved: ' + JSON.stringify(importPath.summary));
 
+  // The panel is called "Check the import", so everything it read has to be on
+  // it. Showing only the jobs made an otherwise correct import look like it had
+  // dropped the name, the licences and the certifications.
+  const shown = await page.evaluate(() => {
+    const val = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.value);
+    return {
+      identity: val('#review-identity input'),
+      credentials: val('#review-credentials input'),
+      education: val('#review-education input'),
+      skills: (document.getElementById('review-skills') || {}).textContent || ''
+    };
+  });
+  failures += shown.identity.some((v) => v === 'Jordan') && shown.identity.some((v) => /@/.test(v))
+    ? ok('the name and email are shown for checking')
+    : bad('identity is not on the review panel: ' + JSON.stringify(shown.identity));
+  failures += shown.credentials.some((v) => v === 'RN201644882')
+    ? ok('licence numbers are shown for checking')
+    : bad('licences are not on the review panel: ' + JSON.stringify(shown.credentials));
+  failures += shown.credentials.some((v) => v === 'BLS') && shown.credentials.some((v) => v === 'ACLS')
+    ? ok('certifications are shown for checking')
+    : bad('certifications are not on the review panel');
+  failures += shown.education.some((v) => /Oregon Health/.test(v))
+    ? ok('the school is shown for checking')
+    : bad('education is not on the review panel: ' + JSON.stringify(shown.education));
+  failures += /Epic/.test(shown.skills)
+    ? ok('the EMR systems it recognised are listed')
+    : bad('skills are not on the review panel');
+
   // Nothing may have reached the profile yet.
   const beforeApply = await page.evaluate(async () => {
     const p = await window.NA.storage.getProfile();
@@ -216,6 +244,28 @@ if (importPath.ok) {
   failures += applied.fileName === 'a-classic.pdf'
     ? ok('the resume file name landed in the profile form')
     : bad('resume file name is ' + JSON.stringify(applied.fileName));
+
+  const landed = await page.evaluate(() => {
+    const val = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.value);
+    return {
+      personal: val('#sec-personal input'),
+      certs: val('#list-certifications select'),
+      licenceRows: document.querySelectorAll('#list-licenses .entry').length,
+      schoolRows: document.querySelectorAll('#list-education .entry').length
+    };
+  });
+  failures += landed.personal.indexOf('Jordan') !== -1 && landed.personal.indexOf('Reyes') !== -1
+    ? ok('the name reached the profile form on approval')
+    : bad('name missing after approval: ' + JSON.stringify(landed.personal.slice(0, 4)));
+  failures += landed.certs.indexOf('BLS') !== -1 && landed.certs.indexOf('ACLS') !== -1
+    ? ok('the certifications reached the profile form')
+    : bad('certifications missing after approval: ' + JSON.stringify(landed.certs));
+  failures += landed.licenceRows === 2
+    ? ok('both licences reached the profile form')
+    : bad('licence rows after approval: ' + landed.licenceRows);
+  failures += landed.schoolRows === 1
+    ? ok('the school reached the profile form')
+    : bad('school rows after approval: ' + landed.schoolRows);
 }
 
 console.log('\nStorage round trip through the real chrome.storage:');
