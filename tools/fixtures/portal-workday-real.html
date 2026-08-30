@@ -1,0 +1,59 @@
+<!--
+  The DOM shape of a real Workday tenant (UW Medicine, wd5.myworkdaysite.com),
+  observed live. Three things here broke the extension and none of them are
+  visible from Workday's documented markup:
+
+  1. data-automation-id sits on the field WRAPPER, never on the control.
+  2. Every dropdown is a <button aria-haspopup="listbox"> whose aria-label runs
+     the field name, the current value and "Required" together.
+  3. The phone block is four controls whose identifiers all contain
+     "phoneNumber": countryPhoneCode, phoneType, phoneNumber and extension.
+     A loose phone rule put the full number into the country code box and the
+     extension box.
+-->
+<!doctype html><html><head><meta charset="utf-8"><title>Careers at Cascade</title></head>
+<body>
+<div data-automation-id="header">
+  <button data-automation-id="utilityMenuButton" aria-haspopup="listbox" type="submit">nurse@example.com</button>
+</div>
+<div data-automation-id="applyFlowPage">
+  <h2 data-automation-id="jobTitleHeading">RN, Outpatient Infusion</h2>
+  <ol data-automation-id="progressBar"><li data-automation-id="progressBarActiveStep">My Information</li></ol>
+
+  <div data-automation-id="formField-country">
+    <button id="country--country" name="country" type="button" aria-haspopup="listbox"
+            aria-label="Country Select One"></button></div>
+  <div data-automation-id="formField-legalName--title">
+    <button id="name--legalName--title" name="legalName--title" type="button" aria-haspopup="listbox"
+            aria-label="Prefix Select One"></button></div>
+  <div data-automation-id="formField-legalName--firstName">
+    <input id="name--legalName--firstName" name="legalName--firstName" type="text"></div>
+  <div data-automation-id="formField-legalName--middleName">
+    <input id="name--legalName--middleName" name="legalName--middleName" type="text"></div>
+  <div data-automation-id="formField-legalName--lastName">
+    <input id="name--legalName--lastName" name="legalName--lastName" type="text"></div>
+  <div data-automation-id="formField-addressLine1">
+    <input id="address--addressLine1" name="addressLine1" type="text"></div>
+  <div data-automation-id="formField-addressLine2">
+    <input id="address--addressLine2" name="addressLine2" type="text"></div>
+  <div data-automation-id="formField-city">
+    <input id="address--city" name="city" type="text"></div>
+  <div data-automation-id="formField-countryRegion">
+    <button id="address--countryRegion" name="countryRegion" type="button" aria-haspopup="listbox"
+            aria-label="State Select One"></button></div>
+  <div data-automation-id="formField-postalCode">
+    <input id="address--postalCode" name="postalCode" type="text"></div>
+
+  <div data-automation-id="formField-phoneType">
+    <button id="phoneNumber--phoneType" name="phoneType" type="button" aria-haspopup="listbox"
+            aria-label="Phone Device Type Select One"></button></div>
+  <div data-automation-id="formField-phoneNumber--countryPhoneCode">
+    <input id="phoneNumber--countryPhoneCode" type="text" aria-label="Country Phone Code"></div>
+  <div data-automation-id="formField-phoneNumber">
+    <input id="phoneNumber--phoneNumber" name="phoneNumber" type="text"></div>
+  <div data-automation-id="formField-extension">
+    <input id="phoneNumber--extension" name="extension" type="text"></div>
+
+  <button type="button" data-automation-id="bottom-navigation-next-button">Save and Continue</button>
+</div>
+</body></html>

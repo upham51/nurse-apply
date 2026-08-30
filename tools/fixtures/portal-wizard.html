@@ -1,0 +1,191 @@
+<!--
+  A realistic four-step nursing application, built from the field labels that
+  actually appear on Workday, iCIMS and symplr nursing postings. Roughly sixty
+  fields, including the screening questions that must never be auto-answered.
+  Used to measure fill coverage rather than to prove a single field works.
+-->
+<!doctype html><html><head><meta charset="utf-8"><title>Cascade Health Careers</title>
+<style>
+ body{font-family:system-ui;margin:24px;max-width:900px}
+ fieldset{border:1px solid #ccc;margin:14px 0;padding:12px}
+ label{display:block;margin:8px 0 2px;font-size:14px}
+ input,select,textarea{width:340px;padding:4px}
+ .step{display:none}.step.active{display:block}
+ .q{margin:10px 0;font-weight:600}
+</style></head><body>
+<h1 data-automation-id="jobPostingHeader">Registered Nurse II, Medical ICU</h1>
+<div data-automation-id="progressBarActiveStep" id="stepname">My Information</div>
+
+<div class="step active" id="s1">
+<fieldset><legend>Personal Information</legend>
+  <label for="a1">Legal First Name</label><input id="a1" data-automation-id="legalNameSection_firstName">
+  <label for="a2">Middle Initial</label><input id="a2">
+  <label for="a3">Legal Last Name</label><input id="a3" data-automation-id="legalNameSection_lastName">
+  <label for="a4">Preferred First Name</label><input id="a4">
+  <label for="a5">Email Address</label><input id="a5" type="email" data-automation-id="email">
+  <label for="a6">Confirm Email Address</label><input id="a6" type="email">
+  <label for="a7">Primary Phone Number</label><input id="a7" data-automation-id="phone-number">
+  <label for="a8">Phone Device Type</label><select id="a8" data-automation-id="phone-device-type">
+    <option value="">Select One</option><option>Mobile</option><option>Home</option><option>Work</option></select>
+  <label for="a9">Address Line 1</label><input id="a9" data-automation-id="addressSection_addressLine1">
+  <label for="a10">Address Line 2</label><input id="a10" data-automation-id="addressSection_addressLine2">
+  <label for="a11">City</label><input id="a11" data-automation-id="addressSection_city">
+  <label for="a12">State</label><select id="a12" data-automation-id="addressSection_state">
+    <option value="">Select One</option><option value="CA">California</option><option value="OR">Oregon</option>
+    <option value="WA">Washington</option></select>
+  <label for="a13">Zip Code</label><input id="a13" data-automation-id="addressSection_postalCode">
+  <label for="a14">Country</label><select id="a14">
+    <option value="">Select One</option><option>United States of America</option><option>Canada</option></select>
+</fieldset>
+<fieldset><legend>Work Eligibility</legend>
+  <div class="q">Are you legally authorized to work in the United States?</div>
+  <label><input type="radio" name="auth" value="y"> Yes</label>
+  <label><input type="radio" name="auth" value="n"> No</label>
+  <div class="q">Will you now or in the future require sponsorship for an employment visa?</div>
+  <label><input type="radio" name="spon" value="y"> Yes</label>
+  <label><input type="radio" name="spon" value="n"> No</label>
+  <label for="a15">How did you hear about this position?</label><select id="a15" data-automation-id="source">
+    <option value="">Select One</option><option>Company Website</option><option>Indeed</option>
+    <option>Employee Referral</option></select>
+</fieldset>
+<button id="n1" type="button">Next</button>
+</div>
+
+<div class="step" id="s2">
+<fieldset><legend>Education</legend>
+  <label for="b1">Highest Level of Education</label><select id="b1">
+    <option value="">Select One</option><option>Diploma</option><option>Associate's Degree</option>
+    <option>Bachelor's Degree</option><option>Master's Degree</option><option>Doctorate</option></select>
+  <label for="b2">School or University Name</label><input id="b2" data-automation-id="school">
+  <label for="b3">Degree</label><select id="b3" data-automation-id="degree">
+    <option value="">Select One</option><option>ADN</option><option>BSN</option><option>MSN</option><option>DNP</option></select>
+  <label for="b4">Field of Study</label><input id="b4" data-automation-id="fieldOfStudy">
+  <label for="b5">Graduation Date</label><input id="b5" type="month">
+  <label for="b6">GPA</label><input id="b6">
+</fieldset>
+<fieldset><legend>Licensure and Certification</legend>
+  <label for="b7">Nursing License Type</label><select id="b7">
+    <option value="">Select One</option><option>RN</option><option>LPN</option><option>APRN</option></select>
+  <label for="b8">License Issuing State</label><select id="b8">
+    <option value="">Select One</option><option value="CA">California</option><option value="OR">Oregon</option>
+    <option value="WA">Washington</option></select>
+  <label for="b9">Nursing License Number</label><input id="b9">
+  <label for="b10">License Expiration Date</label><input id="b10" type="date">
+  <div class="q">Do you hold a compact or multistate nursing license?</div>
+  <label><input type="radio" name="compact" value="y"> Yes</label>
+  <label><input type="radio" name="compact" value="n"> No</label>
+  <label for="b11">NCLEX Pass Date</label><input id="b11" type="month">
+  <label for="b12">BLS Certification Expiration Date</label><input id="b12" type="date">
+  <label for="b13">ACLS Certification Expiration Date</label><input id="b13" type="date">
+  <label for="b14">List any other certifications you hold</label><textarea id="b14"></textarea>
+</fieldset>
+<button id="n2" type="button">Next</button>
+</div>
+
+<div class="step" id="s3">
+<fieldset><legend>Most Recent Employment</legend>
+  <label for="c1">Employer Name</label><input id="c1" data-automation-id="company">
+  <label for="c2">Job Title</label><input id="c2" data-automation-id="jobTitle">
+  <label for="c3">Facility Type</label><select id="c3">
+    <option value="">Select One</option><option>Hospital</option><option>SNF</option><option>Clinic</option>
+    <option>Home Health</option><option>Corrections</option></select>
+  <label for="c4">Unit or Department</label><input id="c4">
+  <label for="c5">Number of Licensed Beds</label><input id="c5">
+  <label for="c6">Typical Nurse to Patient Ratio</label><input id="c6">
+  <label for="c7">Trauma Level Designation</label><select id="c7">
+    <option value="">Select One</option><option>Level I</option><option>Level II</option>
+    <option>Level III</option><option>Non-Trauma</option></select>
+  <label for="c8">Employment Start Date</label><input id="c8" type="month">
+  <label for="c9">Employment End Date</label><input id="c9" type="month">
+  <label><input type="checkbox" id="c10" data-automation-id="currentlyWorkHere"> I currently work here</label>
+  <label for="c11">Supervisor Name</label><input id="c11">
+  <label for="c12">Supervisor Title</label><input id="c12">
+  <label for="c13">Supervisor Phone Number</label><input id="c13">
+  <label for="c14">Supervisor Email</label><input id="c14" type="email">
+  <div class="q">May we contact this employer?</div>
+  <label><input type="radio" name="contact" value="y"> Yes</label>
+  <label><input type="radio" name="contact" value="n"> No</label>
+  <label for="c15">Reason for Leaving</label><input id="c15">
+  <label for="c16">Total Years of Nursing Experience</label><input id="c16">
+  <label for="c17">Primary EMR or EHR System</label><select id="c17">
+    <option value="">Select One</option><option>Epic</option><option>Cerner</option><option>Meditech</option>
+    <option>PointClickCare</option></select>
+  <label for="c18">Describe your clinical responsibilities</label><textarea id="c18"></textarea>
+</fieldset>
+<button id="n3" type="button">Next</button>
+</div>
+
+<div class="step" id="s4">
+<fieldset><legend>Availability and Preferences</legend>
+  <label for="d1">Desired Shift</label><select id="d1">
+    <option value="">Select One</option><option>Days</option><option>Nights</option><option>Evening</option>
+    <option>Rotating</option><option>PRN / Per Diem</option></select>
+  <label for="d2">Shift Length</label><select id="d2">
+    <option value="">Select One</option><option>8 hr</option><option>10 hr</option><option>12 hr</option>
+    <option>Flexible</option></select>
+  <label for="d3">Employment Type</label><select id="d3">
+    <option value="">Select One</option><option>Full-Time</option><option>Part-Time</option><option>PRN</option>
+    <option>Contract / Travel</option></select>
+  <label for="d4">Desired Hourly Rate</label><input id="d4">
+  <div class="q">Are you available to work weekends?</div>
+  <label><input type="radio" name="wknd" value="y"> Yes</label><label><input type="radio" name="wknd" value="n"> No</label>
+  <div class="q">Are you available to work holidays?</div>
+  <label><input type="radio" name="hol" value="y"> Yes</label><label><input type="radio" name="hol" value="n"> No</label>
+  <div class="q">Are you willing to float to other units?</div>
+  <label><input type="radio" name="float" value="y"> Yes</label><label><input type="radio" name="float" value="n"> No</label>
+  <div class="q">Are you willing to relocate for this position?</div>
+  <label><input type="radio" name="reloc" value="y"> Yes</label><label><input type="radio" name="reloc" value="n"> No</label>
+</fieldset>
+<fieldset><legend>Health and Compliance</legend>
+  <div class="q">Will you consent to a pre-employment drug screen?</div>
+  <label><input type="radio" name="drug" value="y"> Yes</label><label><input type="radio" name="drug" value="n"> No</label>
+  <div class="q">Will you consent to a background check?</div>
+  <label><input type="radio" name="bg" value="y"> Yes</label><label><input type="radio" name="bg" value="n"> No</label>
+  <label for="d5">TB Test Date</label><input id="d5" type="date">
+  <label for="d6">Influenza Vaccination Season</label><input id="d6">
+  <label for="d7">Hepatitis B Status</label><select id="d7">
+    <option value="">Select One</option><option>Series Complete</option>
+    <option>Series Complete + Titer Reactive</option><option>Declined</option></select>
+  <label for="d8">COVID-19 Vaccination Status</label><select id="d8">
+    <option value="">Select One</option><option>Fully Vaccinated</option>
+    <option>Fully Vaccinated &amp; Boosted</option><option>Exempt</option></select>
+</fieldset>
+<fieldset><legend>Voluntary Self-Identification</legend>
+  <label for="d9">Gender</label><select id="d9">
+    <option value="">Select One</option><option>Female</option><option>Male</option><option>Non-Binary</option>
+    <option>Decline</option></select>
+  <label for="d10">Race / Ethnicity</label><select id="d10">
+    <option value="">Select One</option><option>White</option><option>Black/African American</option>
+    <option>Asian</option><option>Hispanic/Latino</option><option>Decline</option></select>
+  <label for="d11">Veteran Status</label><select id="d11">
+    <option value="">Select One</option><option>None</option><option>Protected</option><option>Veteran</option>
+    <option>Decline</option></select>
+  <label for="d12">Disability Status</label><select id="d12">
+    <option value="">Select One</option><option>Yes</option><option>No</option><option>Decline</option></select>
+</fieldset>
+<fieldset><legend>Screening Questions</legend>
+  <div class="q">Have you ever been terminated or asked to resign from a position?</div>
+  <label><input type="radio" name="term" value="y"> Yes</label><label><input type="radio" name="term" value="n"> No</label>
+  <div class="q">Has your nursing license ever been disciplined, suspended or revoked by any board?</div>
+  <label><input type="radio" name="disc" value="y"> Yes</label><label><input type="radio" name="disc" value="n"> No</label>
+  <div class="q">Have you ever been convicted of a felony?</div>
+  <label><input type="radio" name="fel" value="y"> Yes</label><label><input type="radio" name="fel" value="n"> No</label>
+  <div class="q">Have you ever been excluded from Medicare or Medicaid participation?</div>
+  <label><input type="radio" name="oig" value="y"> Yes</label><label><input type="radio" name="oig" value="n"> No</label>
+  <label for="d13">Why do you want to work at Cascade Health?</label><textarea id="d13"></textarea>
+</fieldset>
+<button id="submit" type="button">Submit Application</button>
+</div>
+
+<script>
+let step = 1;
+function go(n){
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
+  document.getElementById('s'+n).classList.add('active');
+  document.getElementById('stepname').textContent =
+    ['','My Information','My Experience','My Experience','Application Questions'][n];
+  step = n;
+}
+['n1','n2','n3'].forEach((id,i)=>document.getElementById(id).addEventListener('click',()=>go(i+2)));
+</script>
+</body></html>

@@ -59,6 +59,13 @@
       return true;
     }
     if (el.isContentEditable) return String(el.textContent || '').trim().length > 0;
+    if (tag === 'button') {
+      // "State Washington Required" means the picker already says Washington.
+      const combo = parseAriaCombo(el);
+      if (combo.value) return true;
+      const shown = cleanText(el.textContent);
+      return !!shown && !/^\s*(select one|select|choose|--)\b/i.test(shown);
+    }
     return false;
   }
 
@@ -146,8 +153,10 @@
       if (prev) push(prev);
     }
 
+    const combo = parseAriaCombo(el);
+    if (combo.label) push(combo.label);
     push(el.getAttribute('name'));
-    push(el.getAttribute('data-automation-id'));
+    push(automationId(el));
     push(el.id);
 
     return parts.join(' | ').slice(0, 400);
@@ -173,6 +182,48 @@
     return '';
   }
 
+  /**
+   * Workday puts its stable identifier on the field wrapper, not the control:
+   * <div data-automation-id="formField-legalName--firstName"><input ...></div>.
+   * Reading it off the input alone returned nothing, which blinded the whole
+   * Workday adapter and threw away the best identifier on the page.
+   */
+  function automationId(el) {
+    if (!el) return '';
+    const own = el.getAttribute('data-automation-id');
+    if (own) return own.replace(/^formField-/, '');
+    const wrap = el.closest('[data-automation-id]');
+    if (!wrap) return '';
+    return (wrap.getAttribute('data-automation-id') || '').replace(/^formField-/, '');
+  }
+
+  /**
+   * Workday's dropdowns are plain buttons whose aria-label carries the field
+   * name, the current value and the word Required all run together:
+   * "State Washington Required". Split so the label can be matched on and the
+   * current value is not mistaken for emptiness.
+   */
+  function parseAriaCombo(el) {
+    const raw = cleanText(el.getAttribute('aria-label'));
+    if (!raw) return { label: '', value: '', required: false };
+    const required = /\bRequired\s*$/i.test(raw);
+    let rest = raw.replace(/\s*Required\s*$/i, '').trim();
+    if (/select one\s*$/i.test(rest)) {
+      return { label: rest.replace(/\s*select one\s*$/i, '').trim(), value: '', required };
+    }
+    // The field name is the leading words; the value is what follows. Use the
+    // known field name when the wrapper gives one, otherwise take the first
+    // one or two words.
+    const auto = automationId(el).replace(/^.*--/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
+    if (auto) {
+      const re = new RegExp('^' + auto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*') + '\\s*', 'i');
+      if (re.test(rest)) return { label: auto, value: rest.replace(re, '').trim(), required };
+    }
+    const words = rest.split(/\s+/);
+    const label = words.slice(0, Math.min(2, words.length - 1)).join(' ');
+    return { label: label || rest, value: words.slice(label ? label.split(' ').length : 0).join(' '), required };
+  }
+
   function cssEscape(v) {
     if (root.CSS && typeof root.CSS.escape === 'function') return root.CSS.escape(v);
     return String(v).replace(/["\\\]\[#.:>+~*^$|()]/g, '\\$&');
@@ -188,7 +239,11 @@
     '[role="combobox"]',
     '[role="listbox"]',
     '[role="radiogroup"]',
-    'button[aria-haspopup="listbox"]'
+    'button[aria-haspopup="listbox"]',
+    // Workday renders every dropdown as a bare <button> inside its field
+    // wrapper, with no role and no aria-haspopup. Without this the country,
+    // state, prefix and phone-type pickers were never even seen as fields.
+    '[data-automation-id^="formField-"] button'
   ].join(',');
 
   /** Walk the document plus any open shadow roots. */
@@ -226,6 +281,13 @@
     if (role === 'radiogroup') return 'radiogroup';
     if (role === 'listbox') return 'combobox';
     if (el.isContentEditable) return 'richtext';
+    if (t === 'button') {
+      // Only a button that sits inside a field wrapper is a picker. Next, Save
+      // and Back are buttons too, and must never be touched.
+      const wrap = el.closest('[data-automation-id^="formField-"]');
+      if (wrap && !/\b(next|back|save|submit|continue|cancel|delete|remove|add)\b/i
+        .test(cleanText(el.textContent))) return 'combobox';
+    }
     return 'unknown';
   }
 
@@ -289,7 +351,7 @@
         type: el.type || '',
         name: el.getAttribute('name') || '',
         id: el.id || '',
-        automationId: el.getAttribute('data-automation-id') || '',
+        automationId: automationId(el),
         label: labelFor(el),
         required: el.required || el.getAttribute('aria-required') === 'true',
         options: optionsFor(el),
@@ -714,7 +776,7 @@
   NA.dom = {
     FILLED_ATTR, SKIPPED_ATTR, ID_ATTR, FIELD_SELECTOR,
     sleep, isVisible, hasUserContent, isFilledByUs,
-    labelFor, cleanText, cssEscape,
+    labelFor, cleanText, cssEscape, automationId, parseAriaCombo,
     deepQueryAll, collectFields, serializeField, byNaId, fieldKind,
     optionsFor, fingerprintForm,
     setNativeValue, setContentEditable, fillSelect, selectCustomCombobox,

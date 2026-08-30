@@ -34,7 +34,8 @@ const PROFILE = JSON.parse(readFileSync(join(repo, 'tools/fixtures/profile.json'
 const PAGES = {
   'https://acme.myworkdayjobs.com/en-US/careers/job/apply': 'portal-workday.html',
   'https://careers.riverbendhealth.org/apply': 'portal-employer-shell.html',
-  'https://riverbend.icims.com/jobs/apply': 'portal-icims.html'
+  'https://riverbend.icims.com/jobs/apply': 'portal-icims.html',
+  'https://cascade.wd5.myworkdaysite.com/en-US/recruiting/apply': 'portal-workday-real.html'
 };
 
 const EXEC = [
@@ -134,6 +135,57 @@ console.log('\nA Workday application, the domain the manifest matches directly:'
     failures += /Review skipped \(\d+\)/.test(after || '') && !/Review skipped \(0\)/.test(after || '')
       ? ok('the skipped drawer offers the questions it refused to answer')
       : bad('the skipped count is zero or missing: ' + JSON.stringify(after));
+  }
+  await page.close();
+}
+
+/* ------------------------------- the DOM shape a real Workday tenant emits -- */
+console.log('\nA real Workday tenant, where the identifiers live on the wrapper:');
+{
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('https://cascade.wd5.myworkdaysite.com/en-US/recruiting/apply');
+  await page.waitForTimeout(1500);
+
+  const pill = await hudText(page);
+  failures += pill ? ok('the pill appears: ' + JSON.stringify(pill)) : bad('no pill');
+
+  if (pill) {
+    await clickFill(page);
+    await page.waitForTimeout(3000);
+    const v = await page.evaluate(() => {
+      const g = (id) => (document.getElementById(id) || {}).value;
+      return {
+        first: g('name--legalName--firstName'),
+        last: g('name--legalName--lastName'),
+        street: g('address--addressLine1'),
+        city: g('address--city'),
+        zip: g('address--postalCode'),
+        phone: g('phoneNumber--phoneNumber'),
+        countryCode: g('phoneNumber--countryPhoneCode'),
+        extension: g('phoneNumber--extension'),
+        accountMenuTouched: !!document.querySelector('[data-automation-id="utilityMenuButton"][data-nurseapply-id]')
+      };
+    });
+    failures += v.first === 'Jordan' ? ok('first name, from the wrapper identifier') : bad('first name is ' + JSON.stringify(v.first));
+    failures += v.last === 'Reyes' ? ok('last name') : bad('last name is ' + JSON.stringify(v.last));
+    failures += v.street === '412 NW Clark St' ? ok('street') : bad('street is ' + JSON.stringify(v.street));
+    failures += v.city === 'Portland' ? ok('city') : bad('city is ' + JSON.stringify(v.city));
+    failures += v.zip === '97209' ? ok('postal code') : bad('postal code is ' + JSON.stringify(v.zip));
+    failures += v.phone === '503-555-0142' ? ok('phone number, in the phone number box') : bad('phone is ' + JSON.stringify(v.phone));
+
+    // The bug that made it worse than useless: the number in every phone box.
+    failures += v.countryCode !== '503-555-0142'
+      ? ok('the phone number did NOT go into the country phone code box')
+      : bad('the phone number was written into the country phone code box');
+    failures += v.extension !== '503-555-0142'
+      ? ok('the phone number did NOT go into the extension box')
+      : bad('the phone number was written into the extension box');
+    failures += !v.accountMenuTouched
+      ? ok('the signed-in account menu was not treated as a form field')
+      : bad('the account menu was collected as a field');
+    failures += errors.length === 0 ? ok('no page errors') : bad('page errors: ' + errors.join('; '));
   }
   await page.close();
 }

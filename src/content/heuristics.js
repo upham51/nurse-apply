@@ -127,12 +127,26 @@
 
     { id: 'phone', weight: 11,
       re: /\b(phone|telephone|mobile|cell|contact\s+number|primary\s+number)\b/i,
-      not: /\b(reference|supervisor|emergency|work\s+phone\s+of|extension|country\s+code)\b/i,
+      not: /\b(reference|supervisor|emergency|work\s+phone\s+of|extension|country(\s+phone)?\s+code|device\s+type)\b/i,
       resolve: (p, f) => phoneFor(ident(p).phone, f) },
 
     { id: 'phoneArea', weight: 12,
       re: /\b(area\s*code)\b/i,
+      not: /\bcountry\b/i,
       resolve: (p) => S().phoneParts(ident(p).phone).area },
+
+    { id: 'countryPhoneCode', weight: 14,
+      re: /\bcountry\s*(phone\s*)?code\b/i,
+      resolve: () => 'United States of America (+1)' },
+
+    { id: 'phoneExtension', weight: 14,
+      re: /\b(extension|ext\.?)\b/i,
+      not: /\bfile\b/i,
+      resolve: () => '' },
+
+    { id: 'phoneDeviceType', weight: 14,
+      re: /\b(phone\s*(device\s*)?type|device\s*type)\b/i,
+      resolve: () => 'Mobile' },
 
     { id: 'street', weight: 10,
       re: /\b(street|address\s*(line\s*)?1|address1|addr1|mailing\s+address|home\s+address|street\s+address)\b/i,

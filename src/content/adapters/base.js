@@ -131,6 +131,7 @@
         const hay = [field.automationId, field.name, field.id, field.label]
           .filter(Boolean).join(' ');
         if (!e.test.test(hay)) continue;
+        if (e.not && e.not.test(hay)) continue;
         if (e.kinds && e.kinds.indexOf(field.kind) === -1) continue;
         let value;
         try { value = e.resolve(profile, field, ctx); } catch (err) { value = undefined; }

@@ -57,25 +57,37 @@
       resolve: (p) => p.identity.firstName },
     { id: 'lastName', test: /legalNameSection_lastName|\blastName\b/i,
       resolve: (p) => p.identity.lastName },
+    { id: 'middleName', test: /\bmiddleName\b/i, resolve: () => '' },
+    { id: 'prefix', test: /legalName--title\b/i, resolve: () => '' },
+    { id: 'suffix', test: /legalName--social\b/i, resolve: () => '' },
     { id: 'preferredName', test: /preferredNameSection_firstName/i,
       resolve: (p) => p.identity.preferredName || p.identity.firstName },
     { id: 'email', test: /^email$|contactInformation.*email|\bemail\b/i,
       resolve: (p) => p.identity.email },
-    { id: 'phone', test: /phone-?number|phoneNumber/i,
-      resolve: (p) => S().normalizePhone(p.identity.phone) },
-    { id: 'phoneType', test: /phone-device-type|phoneType/i,
-      resolve: () => 'Mobile' },
+    // Order matters, and so do the exclusions. Workday's phone block is four
+    // fields whose identifiers all contain "phoneNumber":
+    // phoneNumber--countryPhoneCode, phoneNumber--phoneType,
+    // phoneNumber--phoneNumber and phoneNumber--extension. A single loose
+    // phone rule put the full number into the country code and the extension.
     { id: 'countryPhoneCode', test: /country-?phone-?code/i,
       resolve: () => 'United States of America (+1)' },
-    { id: 'addr1', test: /addressSection_addressLine1/i,
+    { id: 'phoneExtension', test: /(^|--|\b)extension\b/i, resolve: () => '' },
+    { id: 'phoneType', test: /phone-device-type|(^|--|\b)phoneType\b/i,
+      resolve: () => 'Mobile' },
+    { id: 'phone', test: /phone-?number/i,
+      not: /country-?phone-?code|extension|phone-?type|device-?type/i,
+      resolve: (p) => S().normalizePhone(p.identity.phone) },
+    // Tenants differ: older builds emit addressSection_city, newer ones put
+    // formField-city on the wrapper. Match both.
+    { id: 'addr1', test: /addressSection_addressLine1|\baddressLine1\b/i,
       resolve: (p) => p.identity.address.street },
-    { id: 'addr2', test: /addressSection_addressLine2/i,
+    { id: 'addr2', test: /addressSection_addressLine2|\baddressLine2\b/i,
       resolve: (p) => p.identity.address.line2 },
-    { id: 'city', test: /addressSection_city/i,
+    { id: 'city', test: /addressSection_city|(?:^|[^a-z])city(?:$|[^a-z])/i,
       resolve: (p) => p.identity.address.city },
-    { id: 'region', test: /addressSection_countryRegion|addressSection_state/i,
+    { id: 'region', test: /addressSection_countryRegion|addressSection_state|\bcountryRegion\b/i,
       resolve: (p) => S().stateName(p.identity.address.state) },
-    { id: 'postal', test: /addressSection_postalCode/i,
+    { id: 'postal', test: /addressSection_postalCode|\bpostalCode\b/i,
       resolve: (p) => p.identity.address.zip },
     { id: 'country', test: /addressSection_country\b|country--country/i,
       resolve: () => 'United States of America' },
@@ -133,6 +145,17 @@
 
     matches(loc) {
       return /myworkdayjobs\.com|myworkdaysite\.com/i.test(loc.hostname);
+    },
+
+    /**
+     * Confine everything to the application itself. The page chrome carries
+     * its own controls, and the signed-in account menu was being collected as
+     * a field on every step.
+     */
+    scopeRoot(doc) {
+      return doc.querySelector('[data-automation-id="applyFlowPage"]') ||
+             doc.querySelector('[data-automation-id="jobApplyForm"]') ||
+             doc.querySelector('form') || doc;
     },
 
     detectStep(doc) {
