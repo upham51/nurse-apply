@@ -120,6 +120,95 @@ failures += eq(p.experience[0].bedCount, '24', 'role 1 bed count');
 failures += eq(p.education[0].degree, 'BSN', 'degree');
 console.log('  stats: ' + JSON.stringify(out.stats));
 
+/* ------------------------------------------------------------------------
+   Second case: the designed layout.
+
+   A real resume from a designer-built template broke every structural
+   assumption at once, and each trait below is one that produced a wrong
+   answer rather than an obvious failure. Empty output is easy to notice; a
+   job title of "PAGE 1 OF 3" is not.
+   ------------------------------------------------------------------------ */
+console.log('\nDesigned layout: letter-spaced headers, right-aligned dates, no bullet glyphs:');
+const designerBytes = Array.from(readFileSync(join(repo, 'tools/fixtures/resumes/designer-layout.pdf')));
+const d = await page.evaluate(async (bytes) => {
+  const text = await window.NA.pdftext.extractText(new Uint8Array(bytes).buffer);
+  const parsed = window.NA.resumeParse.parse(text);
+  return { text, profile: parsed.profile, stats: parsed.stats, report: parsed.report };
+}, designerBytes);
+
+const dp = d.profile;
+const roles = dp.experience;
+
+failures += d.stats.sections.indexOf('experience') !== -1
+  ? ok('letter-spaced "P R O F E S S I O N A L  E X P E R I E N C E" recognised as a section')
+  : bad('sections found were ' + JSON.stringify(d.stats.sections));
+
+failures += eq(roles.length, 4, 'roles');
+failures += eq(dp.identity.firstName, 'Priya', 'first name');
+failures += eq(dp.identity.address.city, 'Tacoma', 'city from the headline, not the words before it');
+failures += eq(dp.identity.address.state, 'WA', 'state');
+
+if (roles.length === 4) {
+  failures += eq(roles[0].title, 'RN Unit Manager / MDS Coordinator', 'run-together title split');
+  failures += eq(roles[0].employer, 'Cascade Ridge Center (Northgate Health)', 'employer, city stripped');
+  failures += eq(roles[0].startDate, '2024-03', 'right-aligned date paired with its title');
+  failures += eq(roles[0].isCurrent, true, 'current role');
+  failures += eq(roles[0].facilityType, 'SNF', 'facility type');
+  failures += eq(roles[0].bedCount, '118', 'bed count');
+  failures += eq(roles[0].unit, 'Long Term Care', 'unit');
+
+  failures += eq(roles[1].employer, 'Olympic Correctional Complex, level 3 medium security institution',
+    'long employer line kept, not mistaken for a duty');
+  failures += eq(roles[1].facilityType, 'Corrections', 'corrections facility');
+  failures += eq(roles[1].unit, 'Triage',
+    'unit read from the title, not from "psychiatric crises" in the duties');
+
+  failures += eq(roles[2].startDate, '2019-08', 'page-two role keeps its own date');
+  failures += eq(roles[2].traumaLevel, 'Level II', 'trauma level');
+  failures += eq(roles[2].typicalRatio, '1:2', 'ratio');
+  failures += eq(roles[2].bedCount, '288', 'bed count');
+
+  failures += roles.every((r) => !/page\s*\d/i.test(r.title) && !/page\s*\d/i.test(r.employer))
+    ? ok('the running page footer never became a job title or employer')
+    : bad('page furniture leaked into a role: ' + JSON.stringify(roles.map((r) => r.title)));
+
+  failures += roles.every((r) => r.responsibilities && r.responsibilities.length > 20)
+    ? ok('duties captured despite there being no bullet characters')
+    : bad('duties missing: ' + JSON.stringify(roles.map((r) => r.responsibilities.length)));
+}
+
+failures += eq(dp.education.length, 1, 'schools');
+if (dp.education.length) {
+  failures += eq(dp.education[0].school, 'Pacific Cascade University',
+    'school name, with the licensure column not glued on');
+  failures += eq(dp.education[0].degree, 'BSN', 'degree from a run-together string');
+  failures += eq(dp.education[0].graduationDate, '2015-05', 'graduation');
+}
+
+const states = dp.licenses.map((l) => l.state).sort().join(',');
+failures += states === 'ID,OR,WA'
+  ? ok('multi-state licensure expanded to ID, OR, WA')
+  : bad('licence states came out as ' + JSON.stringify(states));
+failures += dp.licenses.every((l) => l.number === '')
+  ? ok('no license number invented, because the resume states none')
+  : bad('a license number was invented');
+failures += d.report.some((r) => /no license numbers/i.test(r.msg))
+  ? ok('reports the missing license numbers')
+  : bad('did not report the missing license numbers');
+failures += d.report.some((r) => /no certifications/i.test(r.msg))
+  ? ok('reports that no certifications were found')
+  : bad('did not report the absent certifications');
+failures += dp.certifications.length === 0
+  ? ok('no certification invented')
+  : bad('invented ' + dp.certifications.length + ' certifications');
+
+const ambiguous = d.report.filter((r) => /Could not tell employer from job title/.test(r.msg));
+failures += ambiguous.length === 0
+  ? ok('no spurious ambiguity warnings on a layout it read correctly')
+  : bad(ambiguous.length + ' roles flagged ambiguous: ' + JSON.stringify(ambiguous.map((a) => a.msg)));
+
+console.log('  stats: ' + JSON.stringify(d.stats));
+
 await browser.close();
 server.close();
 console.log(failures === 0 ? '\nAll checks passed.\n' : `\n${failures} check(s) failed.\n`);

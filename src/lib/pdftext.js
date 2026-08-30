@@ -37,64 +37,95 @@
       }));
     if (!placed.length) return [];
 
-    // Detect a two-column layout: a vertical gutter that almost no item crosses.
-    const columns = detectColumns(placed, viewportWidth);
+    const gutter = detectGutter(placed, viewportWidth);
+
+    // A gutter alone does not mean two columns. A resume with right-aligned
+    // dates has one column of prose and a narrow strip of dates that sit on the
+    // SAME baselines as the lines they belong to. Splitting that emits every
+    // role first and every date afterwards, which is worse than useless. So
+    // check whether rows actually span the gutter: if they do, it is one column
+    // with right-aligned content and the two sides must stay on the same line.
+    let ranges = [{ index: 0, from: -Infinity, to: Infinity }];
+    if (gutter !== null) {
+      const fullRows = clusterRows(placed);
+      const spanning = fullRows.filter((row) =>
+        row.some((p) => p.x < gutter) && row.some((p) => p.x >= gutter)).length;
+      if (spanning / fullRows.length < 0.15) {
+        ranges = [
+          { index: 0, from: -Infinity, to: gutter },
+          { index: 1, from: gutter, to: Infinity }
+        ];
+      }
+    }
 
     const lines = [];
-    columns.forEach((col) => {
+    ranges.forEach((col) => {
       const inCol = placed.filter((p) => p.x >= col.from && p.x < col.to);
       if (!inCol.length) return;
-
-      // Cluster by y with a tolerance, rather than bucketing y into fixed
-      // slots. A heading set in 15pt and body text set in 10pt do not share a
-      // bucket size, and rounding each item by its own height made a large
-      // heading sort as though it were somewhere else on the page entirely.
-      const sorted = inCol.slice().sort((a, b) => b.y - a.y);
-      const grouped = [];
-      let row = [sorted[0]];
-      let rowY = sorted[0].y;
-      for (let i = 1; i < sorted.length; i++) {
-        const item = sorted[i];
-        const tolerance = Math.max(2, Math.min(item.h, row[0].h) * 0.5);
-        if (Math.abs(item.y - rowY) <= tolerance) {
-          row.push(item);
-          rowY = (rowY * (row.length - 1) + item.y) / row.length;
-        } else {
-          grouped.push(row);
-          row = [item];
-          rowY = item.y;
-        }
-      }
-      grouped.push(row);
-
-      grouped
-        .forEach((row) => {
-          row.sort((a, b) => a.x - b.x);
-          let text = '';
-          let prev = null;
-          row.forEach((p) => {
-            if (prev) {
-              const gap = p.x - (prev.x + prev.w);
-              if (gap > prev.h * 0.28 && !/\s$/.test(text) && !/^\s/.test(p.text)) text += ' ';
-            }
-            text += p.text;
-            prev = p;
-          });
-          const clean = text.replace(/\s+/g, ' ').trim();
-          if (clean) lines.push({ text: clean, column: col.index, y: row[0].y });
-        });
+      clusterRows(inCol).forEach((row) => {
+        const text = joinRow(row);
+        if (text) lines.push({ text, column: col.index, y: row[0].y });
+      });
     });
     return lines;
   }
 
   /**
-   * Returns one or two column ranges. Two only when there is a clear gutter and
-   * both sides carry a real share of the content, which avoids splitting a
-   * single-column resume that happens to have a right-aligned date margin.
+   * Groups items into visual rows by y with a tolerance, top of page first.
+   * Tolerance is relative to the smaller of the two glyph heights, because a
+   * 15pt heading and 10pt body text do not share a fixed bucket size.
    */
-  function detectColumns(placed, width) {
-    const single = [{ index: 0, from: -Infinity, to: Infinity }];
-    if (!width || placed.length < 40) return single;
+  function clusterRows(items) {
+    const sorted = items.slice().sort((a, b) => b.y - a.y);
+    const rows = [];
+    let row = [sorted[0]];
+    let rowY = sorted[0].y;
+    for (let i = 1; i < sorted.length; i++) {
+      const item = sorted[i];
+      const tolerance = Math.max(2, Math.min(item.h, row[0].h) * 0.5);
+      if (Math.abs(item.y - rowY) <= tolerance) {
+        row.push(item);
+        rowY = (rowY * (row.length - 1) + item.y) / row.length;
+      } else {
+        rows.push(row);
+        row = [item];
+        rowY = item.y;
+      }
+    }
+    rows.push(row);
+    rows.forEach((r) => r.sort((a, b) => a.x - b.x));
+    return rows;
+  }
+
+  /**
+   * Joins one row's glyph runs, inserting a space wherever the horizontal gap
+   * is wider than the run's own advance would explain. Two markers are used:
+   * a normal space, and a double space for a gap wide enough to be a word
+   * break in letter-spaced display type, which the parser relies on to
+   * recover "P R O F E S S I O N A L  E X P E R I E N C E".
+   */
+  function joinRow(row) {
+    let text = '';
+    let prev = null;
+    row.forEach((p) => {
+      if (prev) {
+        const gap = p.x - (prev.x + prev.w);
+        if (gap > prev.h * 0.9) text += '  ';
+        else if (gap > prev.h * 0.16 && !/\s$/.test(text) && !/^\s/.test(p.text)) text += ' ';
+      }
+      text += p.text;
+      prev = p;
+    });
+    return text.replace(/[ \t]{3,}/g, '  ').replace(/^\s+|\s+$/g, '');
+  }
+
+  /**
+   * Finds a vertical gutter that almost no glyph crosses, or null. Whether that
+   * gutter actually separates two columns is decided by the caller, from
+   * whether rows span it.
+   */
+  function detectGutter(placed, width) {
+    if (!width || placed.length < 40) return null;
 
     const buckets = new Array(40).fill(0);
     placed.forEach((p) => {
@@ -113,17 +144,12 @@
         runStart = -1;
       }
     }
-    if (bestLen < 3) return single;
+    if (bestLen < 3) return null;
 
     const gutter = ((bestStart + bestLen / 2) / 40) * width;
     const left = placed.filter((p) => p.x < gutter).length;
-    const right = placed.length - left;
-    if (left < placed.length * 0.2 || right < placed.length * 0.2) return single;
-
-    return [
-      { index: 0, from: -Infinity, to: gutter },
-      { index: 1, from: gutter, to: Infinity }
-    ];
+    if (left < placed.length * 0.1 || left > placed.length * 0.9) return null;
+    return gutter;
   }
 
   /**
@@ -162,5 +188,5 @@
     return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }
 
-  NA.pdftext = { extractText, itemsToLines, detectColumns, loadPdfjs };
+  NA.pdftext = { extractText, itemsToLines, detectGutter, clusterRows, joinRow, loadPdfjs };
 })(typeof self !== 'undefined' ? self : this);

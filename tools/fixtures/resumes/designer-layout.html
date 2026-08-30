@@ -1,0 +1,91 @@
+<!--
+  A synthetic resume that reproduces the layout traits which broke the parser on
+  a real designed CV, with invented details. Every trait here is deliberate:
+
+  1. Letter-spaced small-caps section headers, so the PDF stores one glyph per
+     letter and "PROFESSIONAL EXPERIENCE" extracts as "P R O F E S S I O N A L".
+  2. Dates right-aligned on the same baseline as the job title.
+  3. Job titles set with no space glyphs, arriving as "TravelRN,CVICU/NeuroICU".
+  4. Duty lines with no bullet character, drawn as a hanging indent.
+  5. A running footer with the candidate name and a page number, mid-document.
+  6. EDUCATION and LICENSURE sharing one header line in two columns.
+  7. Employer lines carrying a long parenthetical, then " · City, ST".
+  8. Multi-state licensure stated with no license numbers.
+-->
+<html><head><meta charset="utf-8"><style>
+  @page { size: letter; margin: 0.55in; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 8.6pt; line-height: 1.32; color: #111; }
+  .name { font-size: 17pt; font-weight: 700; letter-spacing: .4px; margin: 0; }
+  .contact { font-size: 8.6pt; margin: 2px 0 0; }
+  .headline { font-size: 8.4pt; letter-spacing: 3.2px; text-transform: uppercase; margin: 6px 0 16px;
+              display: flex; justify-content: space-between; }
+  h2 { font-size: 8.4pt; letter-spacing: 3.4px; text-transform: uppercase; font-weight: 700;
+       border-bottom: .7px solid #111; padding-bottom: 3px; margin: 16px 0 8px; }
+  .role { display: flex; justify-content: space-between; font-weight: 700; font-size: 9.2pt; margin-top: 9px; }
+  .role .when { font-weight: 400; }
+  .org { margin: 1px 0 3px; }
+  .duty { margin: 0 0 2px 14px; }
+  .emr { font-size: 7.8pt; letter-spacing: 1px; margin: 3px 0 0; }
+  .foot { display: flex; justify-content: space-between; font-size: 7.6pt; letter-spacing: 1px;
+          margin-top: 14px; border-top: .7px solid #111; padding-top: 4px; }
+  .cols { display: flex; gap: 46px; }
+  .cols > div { flex: 1; }
+  .pb { page-break-after: always; }
+</style></head><body>
+
+<p class="name">Priya Raghunathan</p>
+<p class="contact">206-555-0164 &nbsp; priya.raghunathan@example.com</p>
+<div class="headline"><span>Registered Nurse &middot; Critical Care</span><span>Tacoma, WA</span></div>
+
+<h2>Professional Summary</h2>
+<p>Registered Nurse with eleven years across intensive care, corrections and skilled nursing management.
+Multi-state licensed in WA, OR and ID.</p>
+
+<h2>Core Competencies</h2>
+<div class="cols">
+  <div><p>ICU drip titration &amp; hemodynamics</p><p>Ventilator &amp; advanced airway management</p></div>
+  <div><p>Interdisciplinary team leadership</p><p>EMR conversion &amp; training</p></div>
+</div>
+
+<h2>Professional Experience</h2>
+
+<div class="role"><span>RNUnitManager/MDSCoordinator</span><span class="when">March 2024 &ndash; Present</span></div>
+<p class="org">Cascade Ridge Center (Northgate Health) &middot; Tacoma, WA</p>
+<p class="duty">Oversee daily clinical operations for a 118-bed skilled nursing facility, managing nursing staff across multiple units to ensure consistent delivery of resident care</p>
+<p class="duty">Coordinate all MDS assessments and care planning in PointClickCare, ensuring accurate documentation and compliant reimbursement capture</p>
+<p class="emr">EMR: POINTCLICKCARE</p>
+
+<div class="role"><span>Treatment&amp;TriageRN,Corrections</span><span class="when">June 2022 &ndash; March 2024</span></div>
+<p class="org">Olympic Correctional Complex, level 3 medium security institution &middot; Forks, WA</p>
+<p class="duty">Served as the facility rover RN, independently responding to all medical emergency alarms throughout an institution housing roughly 900 inmates, including acute trauma, cardiac events and psychiatric crises</p>
+<p class="duty">Performed rapid triage, emergency stabilization and definitive bedside care with minimal backup in a high-security environment</p>
+<p class="emr">EMR: CERNER</p>
+
+<div class="foot"><span>Priya Raghunathan &middot; Registered Nurse</span><span>Page 1 of 2</span></div>
+<div class="pb"></div>
+
+<div class="role"><span>TravelRN,CVICU/Neuro-SurgicalTraumaICU</span><span class="when">August 2019 &ndash; June 2022</span></div>
+<p class="org">Cedar Valley Medical Center, 288-bed Level II Trauma Center (the only Level II center between Yakima and Spokane) &middot; Ellensburg, WA</p>
+<p class="duty">Floated between Cardiovascular ICU and Neuro-Surgical Trauma ICU managing critically ill patients with complex cardiovascular and neurological diagnoses</p>
+<p class="duty">Proficient in vasoactive drip titration, IABP management and ICP monitoring; maintained consistent 1:2 nurse-to-patient ratios</p>
+<p class="emr">EMR: EPIC</p>
+
+<div class="role"><span>StaffRN,MedicalICU(NewGraduate)</span><span class="when">July 2015 &ndash; August 2019</span></div>
+<p class="org">Harbor Point Hospital, flagship Level I Trauma Center &middot; Bremerton, WA</p>
+<p class="duty">New graduate hire in a 16-bed MICU with biweekly float to Neuro ICU, CVICU and Trauma ICU; maintained consistent 1:2 ratios across all units</p>
+<p class="emr">EMR: MEDITECH</p>
+
+<h2>Education &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Licensure</h2>
+<div class="cols">
+  <div>
+    <p>BachelorofScienceinNursing</p>
+    <p>Pacific Cascade University &middot; Graduated May 2015</p>
+  </div>
+  <div>
+    <p>Multi-state Registered Nurse license</p>
+    <p>Washington &middot; Oregon &middot; Idaho</p>
+  </div>
+</div>
+
+<div class="foot"><span>Priya Raghunathan &middot; Registered Nurse</span><span>Page 2 of 2</span></div>
+</body></html>
