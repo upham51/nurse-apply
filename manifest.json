@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NurseApply",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Autofills nursing job applications on hospital hiring portals. It fills. You review and submit.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -10,7 +10,10 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "activeTab"],
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
   "host_permissions": [
     "*://*.myworkdayjobs.com/*",
     "*://*.myworkdaysite.com/*",
@@ -75,12 +78,17 @@
         "src/content/hud.js",
         "src/content/index.js"
       ],
-      "css": ["src/content/hud.css"]
+      "css": [
+        "src/content/hud.css"
+      ]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "src/content/hud.css"],
+      "resources": [
+        "icons/*",
+        "src/content/hud.css"
+      ],
       "matches": [
         "*://*.myworkdayjobs.com/*",
         "*://*.myworkdaysite.com/*",

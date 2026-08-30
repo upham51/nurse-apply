@@ -16,7 +16,10 @@ const API_VERSION = '2023-06-01';
 /* ------------------------------------------------------------ api client */
 
 async function callAnthropic(settings, body) {
-  if (!settings.apiKey) throw new Error('No API key saved in NurseApply settings.');
+  if (!settings.apiKey) {
+    throw new Error('No Anthropic API key saved yet. Open the NurseApply options page, '
+      + 'expand Settings, and paste one into the API key field.');
+  }
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: {

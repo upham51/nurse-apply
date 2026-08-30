@@ -30,9 +30,17 @@ to NurseApply. The popup is how you trigger a fill when the floating pill is hid
 
 Two ways.
 
-**Import a resume.** Click **Import resume** on the options page. This needs an Anthropic
-API key, entered in the Settings section first. Drop in a PDF, DOCX or TXT. PDFs go to the
-API as a document so two-column layouts survive; DOCX is unzipped and read locally. The
+**Import a resume.** Click **Import resume** on the options page. This is the one feature that
+calls a model, so it needs an Anthropic API key. If you have not saved one, the button asks for it
+and tests it before going any further, and offers **Just attach a file instead** if you would rather
+not use a key at all. Attaching still lets NurseApply upload the resume to a portal's file input;
+it just will not populate the profile for you.
+
+The API key saves the moment you type it. It does not wait for **Save profile**, which only
+covers profile fields. Drop in a PDF, DOCX or TXT. PDFs go to the
+API as a document so two-column layouts survive; DOCX is unzipped and read locally. A PDF over
+4 MB is still parsed, but the file itself is not kept, because `chrome.storage.local` has a quota
+and a failed write would take the rest of the profile with it. The
 model returns a structured profile which populates the form. Nothing is saved until you
 press **Save profile**, so read every section first. It will not invent a license number,
 an expiration date, an NPI or an immunization record that is not written in the document.

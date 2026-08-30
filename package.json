@@ -1,12 +1,14 @@
 {
   "name": "nurseapply",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Chrome extension that autofills nursing job applications. Fills only, never submits.",
   "scripts": {
     "check": "node tools/check.mjs",
-    "test": "node tools/test-fill.mjs",
-    "package": "node tools/package.mjs"
+    "test": "node tools/test-fill.mjs && node tools/test-options.mjs",
+    "package": "node tools/package.mjs",
+    "test:fill": "node tools/test-fill.mjs",
+    "test:options": "node tools/test-options.mjs"
   },
   "devDependencies": {
     "playwright": "^1.47.0"

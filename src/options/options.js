@@ -333,21 +333,28 @@
     const c = $('#sec-settings');
     c.textContent = '';
 
-    const key = el('input', { type: 'password', placeholder: 'sk-ant-…' });
+    // Settings persist on their own, separately from the profile. The API key
+    // living only in memory until someone pressed Save profile was the reason
+    // resume import could report "no API key" one second after you typed one.
+    const key = el('input', { type: 'password', placeholder: 'sk-ant-…', id: 'na-api-key' });
     key.value = settings.apiKey || '';
     key.addEventListener('input', () => { settings.apiKey = key.value.trim(); });
+    key.addEventListener('change', persistSettings);
+    key.addEventListener('blur', persistSettings);
     c.appendChild(el('label', { class: 'field col-6' },
-      [el('span', { class: 'lab', text: 'Anthropic API key (stored locally, never exported)' }), key]));
+      [el('span', { class: 'lab', text: 'Anthropic API key (saved as you type it, kept on this machine, never exported)' }), key]));
 
     const mapModel = el('input', { type: 'text' });
     mapModel.value = settings.mappingModel;
     mapModel.addEventListener('input', () => { settings.mappingModel = mapModel.value.trim(); });
+    mapModel.addEventListener('change', persistSettings);
     c.appendChild(el('label', { class: 'field col-3' },
       [el('span', { class: 'lab', text: 'Field-mapping model' }), mapModel]));
 
     const parseModel = el('input', { type: 'text' });
     parseModel.value = settings.parsingModel;
     parseModel.addEventListener('input', () => { settings.parsingModel = parseModel.value.trim(); });
+    parseModel.addEventListener('change', persistSettings);
     c.appendChild(el('label', { class: 'field col-3' },
       [el('span', { class: 'lab', text: 'Resume-parsing model' }), parseModel]));
 
@@ -360,7 +367,7 @@
     ].forEach(([k, label]) => {
       const input = el('input', { type: 'checkbox' });
       input.checked = !!settings[k];
-      input.addEventListener('change', () => { settings[k] = input.checked; });
+      input.addEventListener('change', () => { settings[k] = input.checked; persistSettings(); });
       c.appendChild(el('label', { class: 'check col-6' }, [input, el('span', { text: label })]));
     });
   }
@@ -384,6 +391,18 @@
   /* -------------------------------------------------------------- status */
 
   function markDirty() { dirty = true; setStatus('Unsaved changes.'); }
+
+  /** Settings are written immediately; only the profile waits for Save. */
+  let persistTimer = null;
+  function persistSettings() {
+    clearTimeout(persistTimer);
+    return new Promise((resolve) => {
+      persistTimer = setTimeout(async () => {
+        try { settings = await NA.storage.setSettings(settings); } catch (e) { /* best effort */ }
+        resolve(settings);
+      }, 0);
+    });
+  }
 
   function setStatus(msg, tone) {
     const n = $('#status');
@@ -420,47 +439,135 @@
     return { close: () => { rootEl.textContent = ''; } };
   }
 
-  function openResumeImport() {
+  const MAX_STORED_RESUME_BYTES = 4 * 1024 * 1024;
+
+  async function openResumeImport() {
+    // Pick up a key typed a moment ago but not yet flushed.
+    await persistSettings();
+
+    if (!settings.apiKey) {
+      openKeyFirst();
+      return;
+    }
+
     const zone = el('div', { class: 'dropzone', text: 'Drop a PDF, DOCX or TXT resume here, or click to choose' });
     const input = el('input', { type: 'file', accept: '.pdf,.docx,.txt,.md', class: 'hidden' });
     const statusNode = el('p', { class: 'note', text: '' });
-    const preview = el('textarea', { class: 'hidden' });
 
     zone.addEventListener('click', () => input.click());
     zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('over'));
     zone.addEventListener('drop', (e) => {
       e.preventDefault(); zone.classList.remove('over');
-      if (e.dataTransfer.files[0]) handleResume(e.dataTransfer.files[0], statusNode, ui);
+      if (e.dataTransfer.files[0]) handleResume(e.dataTransfer.files[0], statusNode, ui, { parse: true });
     });
     input.addEventListener('change', () => {
-      if (input.files[0]) handleResume(input.files[0], statusNode, ui);
+      if (input.files[0]) handleResume(input.files[0], statusNode, ui, { parse: true });
+    });
+
+    const attachOnly = el('button', {
+      class: 'ghost', text: 'Attach without parsing',
+      onclick: () => {
+        input.onchange = null;
+        const plain = el('input', { type: 'file', accept: '.pdf,.docx,.txt,.md', class: 'hidden' });
+        plain.addEventListener('change', () => {
+          if (plain.files[0]) handleResume(plain.files[0], statusNode, ui, { parse: false });
+        });
+        document.body.appendChild(plain);
+        plain.click();
+        setTimeout(() => plain.remove(), 30000);
+      }
     });
 
     const ui = modal(
       'Import resume',
-      'The file is read on this machine. Its text is sent to the Anthropic API with your key so ' +
-      'the model can fill the profile, then you review every field before saving. Nothing is saved until you press Save profile.',
-      [zone, input, statusNode, preview],
-      [el('button', { class: 'ghost', text: 'Close', onclick: () => ui.close() })]
+      'The file is read on this machine. A PDF goes to the Anthropic API as a document so a two-column ' +
+      'layout survives; DOCX and TXT are read locally and sent as text. The model fills the profile, you ' +
+      'check every field, and nothing is stored until you press Save profile.',
+      [zone, input, statusNode],
+      [attachOnly, el('button', { class: 'ghost', text: 'Close', onclick: () => ui.close() })]
     );
   }
 
-  async function handleResume(file, statusNode, ui) {
+  /**
+   * Resume parsing needs a key. Rather than fail after the user has already
+   * picked a file, ask for the key here and continue in the same modal.
+   */
+  function openKeyFirst() {
+    const keyInput = el('input', { type: 'password', placeholder: 'sk-ant-…' });
+    keyInput.style.marginBottom = '4px';
+    const statusNode = el('p', { class: 'note', text: '' });
+
+    const saveAndGo = el('button', {
+      class: 'primary', text: 'Save key and continue',
+      onclick: async () => {
+        const value = keyInput.value.trim();
+        if (!value) { statusNode.textContent = 'Paste a key first.'; return; }
+        settings.apiKey = value;
+        statusNode.textContent = 'Checking the key…';
+        await persistSettings();
+        const res = await sendMessage({ type: 'llm:test' });
+        if (!res || !res.ok) {
+          statusNode.textContent = 'That key did not work: ' + ((res && res.error) || 'no response');
+          return;
+        }
+        renderSettings();
+        ui.close();
+        openResumeImport();
+      }
+    });
+
+    const skip = el('button', {
+      class: 'ghost', text: 'Just attach a file instead',
+      onclick: () => {
+        const plain = el('input', { type: 'file', accept: '.pdf,.docx,.txt,.md', class: 'hidden' });
+        plain.addEventListener('change', () => {
+          if (plain.files[0]) handleResume(plain.files[0], statusNode, ui, { parse: false });
+        });
+        document.body.appendChild(plain);
+        plain.click();
+        setTimeout(() => plain.remove(), 30000);
+      }
+    });
+
+    const ui = modal(
+      'Add an Anthropic API key',
+      'Parsing a resume into the profile is the one feature that calls a model, so it needs your own key ' +
+      'from console.anthropic.com. It is stored on this machine only and is left out of profile exports. ' +
+      'If you would rather not use one, you can still attach the file so NurseApply can upload it to ' +
+      'portals, and type the profile in yourself.',
+      [el('label', { class: 'field' },
+        [el('span', { class: 'lab', text: 'Anthropic API key' }), keyInput]), statusNode],
+      [saveAndGo, skip, el('button', { class: 'ghost', text: 'Close', onclick: () => ui.close() })]
+    );
+  }
+
+  async function handleResume(file, statusNode, ui, opts) {
+    const parse = !opts || opts.parse !== false;
     statusNode.textContent = `Reading ${file.name}…`;
     try {
       const buf = await file.arrayBuffer();
       const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
       const isDocx = /\.docx$/i.test(file.name);
 
-      let msg = { type: 'llm:parseResume' };
+      const msg = { type: 'llm:parseResume' };
       let text = '';
 
       if (isPdf) {
-        msg.base64 = bytesToBase64(new Uint8Array(buf));
+        const base64 = bytesToBase64(new Uint8Array(buf));
+        msg.base64 = base64;
         msg.mediaType = 'application/pdf';
-        profile.documents.resumeBase64 = msg.base64;
-        profile.documents.resumeMimeType = 'application/pdf';
+        // Keeping the bytes is what lets NurseApply attach the resume to a
+        // portal's file input later. Oversized files are read but not stored,
+        // because chrome.storage.local has a quota and a failed write would
+        // take the whole profile down with it.
+        if (buf.byteLength <= MAX_STORED_RESUME_BYTES) {
+          profile.documents.resumeBase64 = base64;
+          profile.documents.resumeMimeType = 'application/pdf';
+        } else {
+          profile.documents.resumeBase64 = '';
+          profile.documents.resumeMimeType = '';
+        }
       } else if (isDocx) {
         text = await NA.docx.extractText(buf);
         msg.text = text;
@@ -471,6 +578,17 @@
 
       profile.documents.resumeFileName = file.name;
       if (text) profile.documents.resumeText = text;
+
+      if (!parse) {
+        render();
+        markDirty();
+        const tooBig = isPdf && buf.byteLength > MAX_STORED_RESUME_BYTES;
+        statusNode.textContent = tooBig
+          ? `${file.name} is over 4 MB, so the file itself was not stored. The name is on record. Press Save profile.`
+          : `${file.name} attached. Press Save profile.`;
+        setTimeout(() => ui.close(), 1600);
+        return;
+      }
 
       statusNode.textContent = 'Asking the model to structure it. This takes a few seconds…';
       const res = await sendMessage(msg);

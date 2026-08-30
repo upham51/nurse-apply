@@ -23,6 +23,12 @@ field stays blank, that the work authorization question is answered from the pro
 that a "why do you want to work here" prompt is drafted into the drawer rather than written
 into the form.
 
+`npm run test:options` loads the options page against an in-memory `chrome.storage.local` shim and
+checks the behaviours that only appear in a browser: that the API key reaches storage the moment it
+is typed rather than waiting for Save profile, that clearing the field clears the stored key, that
+resume import asks for a key up front instead of failing after a file has been chosen, and that the
+attach-without-parsing path is offered.
+
 ## Manual, on live portals
 
 Nothing here can substitute for running against a real posting. Platform selectors change,

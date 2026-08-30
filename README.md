@@ -91,7 +91,7 @@ unpacked", pick this folder, then fill in your profile.
 
 ```
 npm run check    # syntax, manifest integrity, safety invariants
-npm test         # headless fill against a synthetic React-style ATS form
+npm test         # headless fill harness plus the options-page harness
 npm run package  # dist/nurseapply-<version>.zip
 ```
 
