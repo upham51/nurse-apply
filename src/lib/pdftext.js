@@ -126,11 +126,22 @@
     ];
   }
 
-  /** Extracts the whole document as newline-separated text. */
+  /**
+   * Extracts the whole document as newline-separated text.
+   *
+   * The copy is not optional. pdf.js hands the typed array to its worker as a
+   * transferable, which detaches the underlying ArrayBuffer in this thread. A
+   * caller that still needs those bytes afterwards, to store the file for
+   * upload, say, would get "Cannot perform Construct on a detached
+   * ArrayBuffer". Copying here keeps that a private detail of this module
+   * rather than a trap every caller has to know about.
+   */
   async function extractText(arrayBuffer, opts) {
     const pdfjs = await loadPdfjs();
+    const bytes = new Uint8Array(arrayBuffer.byteLength);
+    bytes.set(new Uint8Array(arrayBuffer));
     const task = pdfjs.getDocument({
-      data: new Uint8Array(arrayBuffer),
+      data: bytes,
       isEvalSupported: false,
       useSystemFonts: false,
       disableFontFace: true

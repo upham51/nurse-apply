@@ -78,13 +78,32 @@ const pdfBytes = Array.from(readFileSync(join(repo, 'tools/fixtures/resumes/a-cl
 console.log('\nPDF text extraction with the vendored pdf.js:');
 const out = await page.evaluate(async (bytes) => {
   const buf = new Uint8Array(bytes).buffer;
+  const before = buf.byteLength;
   const text = await window.NA.pdftext.extractText(buf);
+
+  // pdf.js hands its typed array to the worker as a transferable, which
+  // detaches the buffer in this thread. The options page still needs those
+  // bytes afterwards to store the resume for portal uploads, so extraction
+  // must not consume the caller's buffer.
+  let survived = false;
+  let reuseError = '';
+  try {
+    const copy = new Uint8Array(buf);
+    survived = buf.byteLength === before && copy.length === before;
+  } catch (e) { reuseError = String(e && e.message || e); }
+
   const parsed = window.NA.resumeParse.parse(text);
-  return { chars: text.length, sample: text.slice(0, 90), profile: parsed.profile, stats: parsed.stats };
+  return { chars: text.length, sample: text.slice(0, 90), profile: parsed.profile,
+           stats: parsed.stats, survived, reuseError };
 }, pdfBytes);
 
 failures += out.chars > 800 ? ok(`extracted ${out.chars} characters`) : bad(`only ${out.chars} characters extracted`);
 console.log('  first line: ' + JSON.stringify(out.sample.split('\n')[0]));
+
+console.log('\nCaller buffer survives extraction:');
+failures += out.survived
+  ? ok('the input ArrayBuffer is still usable after extraction')
+  : bad('extraction detached the caller buffer' + (out.reuseError ? ': ' + out.reuseError : ''));
 
 console.log('\nParsed straight out of the PDF:');
 const p = out.profile;

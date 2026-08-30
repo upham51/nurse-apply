@@ -107,6 +107,54 @@ if (!result.ok) {
   console.log('  stats: ' + JSON.stringify(result.stats));
 }
 
+console.log('\nThe options page import path, end to end:');
+// Drives handleResume the way the file picker does, so the whole sequence runs:
+// read bytes, keep them for upload, extract, parse, render. Calling the pdf
+// library alone missed a detached-buffer bug that only this path hits.
+const importPath = await page.evaluate(async (bytes) => {
+  const file = new File([new Uint8Array(bytes)], 'a-classic.pdf', { type: 'application/pdf' });
+  const input = document.createElement('input');
+  input.type = 'file';
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+
+  document.getElementById('btn-import-resume').click();
+  await new Promise((r) => setTimeout(r, 200));
+  const zone = document.querySelector('.modal .dropzone');
+  if (!zone) return { ok: false, error: 'import modal did not open' };
+
+  const drop = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt });
+  zone.dispatchEvent(drop);
+
+  for (let i = 0; i < 100; i++) {
+    await new Promise((r) => setTimeout(r, 200));
+    const note = document.querySelector('.modal p.note');
+    const msg = note ? note.textContent : '';
+    if (/Could not import/i.test(msg)) return { ok: false, error: msg };
+    if (/^Found /.test(msg) || /recognised no profile fields/.test(msg)) {
+      const stored = await window.NA.storage.getProfile();
+      return { ok: true, message: msg };
+    }
+  }
+  const note = document.querySelector('.modal p.note');
+  return { ok: false, error: 'timed out, last status: ' + (note ? note.textContent : 'none') };
+}, pdfBytes);
+
+failures += importPath.ok
+  ? ok('drop-to-parse succeeded: ' + importPath.message)
+  : bad('import path failed: ' + importPath.error);
+
+if (importPath.ok) {
+  const kept = await page.evaluate(() => {
+    const n = document.querySelector('#sec-documents input');
+    return { fileName: n ? n.value : '' };
+  });
+  failures += kept.fileName === 'a-classic.pdf'
+    ? ok('resume file name landed in the profile form')
+    : bad('resume file name is ' + JSON.stringify(kept.fileName));
+}
+
 console.log('\nStorage round trip through the real chrome.storage:');
 const stored = await page.evaluate(async () => {
   await window.NA.storage.setSettings({ apiKey: 'sk-ant-roundtrip' });

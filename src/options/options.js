@@ -495,23 +495,26 @@
     statusNode.textContent = 'Reading ' + file.name + '…';
     try {
       const buf = await file.arrayBuffer();
+      const size = buf.byteLength;
+      const isPdfFile = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+
+      // Read the bytes we intend to keep before any parser touches the buffer.
+      // Keeping them is what lets NurseApply attach the resume to a portal file
+      // input later. chrome.storage.local has a quota, and a failed write would
+      // take the rest of the profile with it, so an oversized file is parsed
+      // but not stored.
+      if (isPdfFile && size <= MAX_STORED_RESUME_BYTES) {
+        profile.documents.resumeBase64 = bytesToBase64(new Uint8Array(buf));
+        profile.documents.resumeMimeType = 'application/pdf';
+      } else if (isPdfFile) {
+        profile.documents.resumeBase64 = '';
+        profile.documents.resumeMimeType = '';
+      }
+
       const { text, isPdf } = await extractResumeText(file, buf, statusNode);
 
       profile.documents.resumeFileName = file.name;
       if (text) profile.documents.resumeText = text;
-
-      if (isPdf) {
-        // Keeping the bytes is what lets NurseApply attach the resume to a
-        // portal file input later. chrome.storage.local has a quota, and a
-        // failed write would take the rest of the profile with it.
-        if (buf.byteLength <= MAX_STORED_RESUME_BYTES) {
-          profile.documents.resumeBase64 = bytesToBase64(new Uint8Array(buf));
-          profile.documents.resumeMimeType = 'application/pdf';
-        } else {
-          profile.documents.resumeBase64 = '';
-          profile.documents.resumeMimeType = '';
-        }
-      }
 
       statusNode.textContent = 'Parsing…';
       const parsed = NA.resumeParse.parse(text);
@@ -519,7 +522,7 @@
       render();
       markDirty();
 
-      statusNode.textContent = summarise(parsed.stats, file.name, isPdf && buf.byteLength > MAX_STORED_RESUME_BYTES);
+      statusNode.textContent = summarise(parsed.stats, file.name, isPdf && size > MAX_STORED_RESUME_BYTES);
       resultNode.appendChild(reportList(parsed.report));
       resultNode.appendChild(refineRow(text, statusNode, resultNode));
     } catch (e) {
