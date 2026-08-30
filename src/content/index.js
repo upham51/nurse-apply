@@ -161,6 +161,28 @@
         planned.plan, profile, settings, adapter,
         (partial) => reportProgress(partial)
       );
+
+      // Autopilot takes everything the rules could not place. The rules are
+      // exact and free, so they go first; this is for the questions each
+      // hospital invents, which is most of a real application.
+      if (settings.autopilot) {
+        if (ownsHud) NA.hud.setState({ status: 'thinking' });
+        const auto = await NA.autopilot.run(planned.plan, profile, {
+          comboOptions: adapter.comboboxOptions,
+          onProgress: () => reportProgress(results)
+        });
+        if (auto.error) {
+          results.modelError = auto.error;
+        }
+        if (auto.filled.length) {
+          const done = new Set(auto.filled.map((f) => f.naId));
+          auto.filled.forEach((f) => results.filled.push({
+            naId: f.naId, label: f.label, kind: '', reason: '', tier: 4, ruleId: 'autopilot'
+          }));
+          results.skipped = results.skipped.filter((s) => !done.has(s.naId));
+          results.suggested = results.suggested.filter((s) => !done.has(s.naId));
+        }
+      }
       return results;
     } finally {
       filling = false;
@@ -223,7 +245,7 @@
       return;
     }
     mergeAggregate(payload);
-    NA.hud.setState({ status: 'done' });
+    NA.hud.setState({ status: 'done', modelError: res.modelError || '' });
     await recordApplication();
     await send({ type: 'stats:bump', filled: aggregate.filled, skipped: aggregate.skipped.length });
   }
@@ -266,7 +288,11 @@
           NA.hud.setState({ status: 'idle', filled: 0, skipped: [], suggested: [], drawerOpen: false });
           refreshCounts();
         }
-        if (settings && settings.autoFillOnLoad && fields.length) runFill();
+        // With autopilot on, a new step is filled the moment it renders, so
+        // the nurse presses Next and nothing else until Submit.
+        const shouldAuto = settings && (settings.autopilot ? settings.autoAdvance !== false
+                                                           : settings.autoFillOnLoad);
+        if (shouldAuto && fields.length) runFill();
       }, 600);
     });
     observer.observe(document.documentElement, {
@@ -348,7 +374,8 @@
     }
 
     watchForStepChanges();
-    if (settings.autoFillOnLoad && fields.length) setTimeout(runFill, 900);
+    const autoOnLoad = settings.autopilot ? settings.autoAdvance !== false : settings.autoFillOnLoad;
+    if (autoOnLoad && fields.length) setTimeout(runFill, 900);
   }
 
   if (document.readyState === 'loading') {

@@ -105,6 +105,28 @@ which platform was detected and which step you are on.
 The pill moves itself out of the way when a Next or Submit button is underneath it.
 The `×` hides it until you reload.
 
+## Autopilot
+
+This is what fills a whole application rather than the parts a rule recognises.
+
+1. Open Settings on the profile page.
+2. Choose a **Model provider** and paste an **API key**. Kimi, DeepSeek, Groq,
+   OpenRouter, OpenAI and Anthropic are listed, and "Anything OpenAI-compatible"
+   lets you point at your own endpoint.
+3. Tick **Autopilot**, and leave **Fill each new step automatically** on.
+4. Press **Test** to check the key. It will tell you plainly if the account has
+   no credit or the model name is wrong.
+
+Then open an application. It fills the first step by itself, you read it and
+press Next, and it fills the next one as it appears. It never presses Submit.
+
+It never sends, and never answers, the questions about discipline, termination,
+criminal history, exclusions, malpractice or drug screening. Those fields are
+removed before the request is built, so the model is not even shown them.
+
+Your key is kept on this machine, is used only from the extension's background
+page so no website can read it, and is left out of profile exports.
+
 ## When a careers page does nothing
 
 NurseApply only runs where it has been allowed to. It comes switched on for the big platforms

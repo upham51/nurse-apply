@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NurseApply",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Autofills nursing job applications on hospital hiring portals. It fills. You review and submit.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -27,7 +27,13 @@
     "*://*.healthcaresource.com/*",
     "*://*.indeed.com/*",
     "*://*.linkedin.com/*",
-    "https://api.anthropic.com/*"
+    "https://api.anthropic.com/*",
+    "https://api.moonshot.ai/*",
+    "https://api.moonshot.cn/*",
+    "https://api.openai.com/*",
+    "https://api.deepseek.com/*",
+    "https://api.groq.com/*",
+    "https://openrouter.ai/*"
   ],
   "background": {
     "service_worker": "src/background/service-worker.js"
@@ -76,6 +82,7 @@
         "src/content/adapters/indeed.js",
         "src/content/adapters/registry.js",
         "src/content/mapper.js",
+        "src/content/autopilot.js",
         "src/content/hud.js",
         "src/content/index.js"
       ],

@@ -332,37 +332,54 @@
     const c = $('#sec-settings');
     c.textContent = '';
 
-    // Settings persist on their own, separately from the profile. The API key
-    // living only in memory until someone pressed Save profile was the reason
-    // resume import could report "no API key" one second after you typed one.
-    const key = el('input', { type: 'password', placeholder: 'sk-ant-…', id: 'na-api-key' });
+    const providers = NA.provider.PROVIDERS;
+    const spec = () => NA.provider.describe(settings.provider);
+
+    const providerSel = el('select');
+    Object.keys(providers).forEach((id) => {
+      providerSel.appendChild(el('option', { value: id, text: providers[id].label }));
+    });
+    providerSel.value = settings.provider || 'moonshot';
+    providerSel.addEventListener('change', () => {
+      settings.provider = providerSel.value;
+      // Clear the overrides so the new provider's own defaults take effect.
+      settings.baseUrl = '';
+      settings.model = '';
+      persistSettings();
+      renderSettings();
+    });
+    c.appendChild(el('label', { class: 'field col-4' },
+      [el('span', { class: 'lab', text: 'Model provider' }), providerSel]));
+
+    const key = el('input', { type: 'password', placeholder: spec().keyHint || 'API key', id: 'na-api-key' });
     key.value = settings.apiKey || '';
     key.addEventListener('input', () => { settings.apiKey = key.value.trim(); });
     key.addEventListener('change', persistSettings);
     key.addEventListener('blur', persistSettings);
+    c.appendChild(el('label', { class: 'field col-8' },
+      [el('span', { class: 'lab', text: 'API key, saved as you type, kept on this machine and left out of exports' }), key]));
+
+    const model = el('input', { type: 'text', placeholder: spec().defaultModel || 'model name' });
+    model.value = settings.model || '';
+    model.addEventListener('input', () => { settings.model = model.value.trim(); });
+    model.addEventListener('change', persistSettings);
     c.appendChild(el('label', { class: 'field col-6' },
-      [el('span', { class: 'lab', text: 'Anthropic API key (saved as you type it, kept on this machine, never exported)' }), key]));
+      [el('span', { class: 'lab', text: 'Model, blank uses ' + (spec().defaultModel || 'the provider default') }), model]));
 
-    const mapModel = el('input', { type: 'text' });
-    mapModel.value = settings.mappingModel;
-    mapModel.addEventListener('input', () => { settings.mappingModel = mapModel.value.trim(); });
-    mapModel.addEventListener('change', persistSettings);
-    c.appendChild(el('label', { class: 'field col-3' },
-      [el('span', { class: 'lab', text: 'Field-mapping model' }), mapModel]));
-
-    const parseModel = el('input', { type: 'text' });
-    parseModel.value = settings.parsingModel;
-    parseModel.addEventListener('input', () => { settings.parsingModel = parseModel.value.trim(); });
-    parseModel.addEventListener('change', persistSettings);
-    c.appendChild(el('label', { class: 'field col-3' },
-      [el('span', { class: 'lab', text: 'Resume-parsing model' }), parseModel]));
+    const base = el('input', { type: 'text', placeholder: spec().baseUrl || 'https://…/v1' });
+    base.value = settings.baseUrl || '';
+    base.addEventListener('input', () => { settings.baseUrl = base.value.trim(); });
+    base.addEventListener('change', persistSettings);
+    c.appendChild(el('label', { class: 'field col-6' },
+      [el('span', { class: 'lab', text: 'API address, blank uses ' + (spec().baseUrl || 'the provider default') }), base]));
 
     [
-      ['enableLlmFallback', 'Use the model for fields the rules cannot map'],
+      ['autopilot', 'Autopilot: let the model fill everything the rules cannot'],
+      ['autoAdvance', 'Fill each new step automatically as it appears'],
       ['enableTracker', 'Log applications to the tracker'],
       ['highlightFilled', 'Outline fields NurseApply filled'],
       ['fillDemographics', 'Answer voluntary EEO questions from my profile'],
-      ['autoFillOnLoad', 'Fill automatically when a form loads (off is safer)']
+      ['autoFillOnLoad', 'Fill automatically on load, when autopilot is off']
     ].forEach(([k, label]) => {
       const input = el('input', { type: 'checkbox' });
       input.checked = !!settings[k];
@@ -816,11 +833,15 @@
     });
 
     $('#btn-test-key').addEventListener('click', async () => {
-      setStatus('Testing the key…');
-      await NA.storage.setSettings(settings);
+      setStatus('Asking the model to say hello…');
+      await persistSettings();
       const res = await sendMessage({ type: 'llm:test' });
-      if (res && res.ok) setStatus('Key works. Model replied: ' + res.text, 'ok');
-      else setStatus('Key test failed: ' + ((res && res.error) || 'no response'), 'bad');
+      if (res && res.ok) {
+        const cfg = NA.provider.resolve(settings);
+        setStatus(`${cfg.label} answered "${res.text}" using ${cfg.model}. Autopilot will work.`, 'ok');
+      } else {
+        setStatus((res && res.error) || 'No response from the extension.', 'bad');
+      }
     });
 
     $('#btn-clear-cache').addEventListener('click', async () => {

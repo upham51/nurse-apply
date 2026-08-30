@@ -81,24 +81,58 @@
       el.getAttribute('role') === 'radio' || el.getAttribute('role') === 'checkbox';
   }
 
-  /** The question text wrapping a radio or checkbox group. */
+  /**
+   * The question a radio or checkbox group is asking.
+   *
+   * A fieldset legend is the obvious place to look and is usually the wrong
+   * one. Forms group many questions under one legend ("Work Eligibility",
+   * "Screening Questions") and put each actual question in a div just above
+   * its options. Taking the legend gave every radio on a step the same
+   * meaningless label, so nothing matched them and the model was shown
+   * "Work Eligibility" instead of "Are you legally authorized to work...".
+   *
+   * So: the nearest block of text above the FIRST option in the group wins
+   * when it reads like a question, and the legend is only the fallback.
+   */
   function groupQuestion(el) {
+    const doc = el.ownerDocument;
     const group = el.closest('fieldset, [role="radiogroup"], [role="group"]');
+
+    // An explicit accessible name beats any guess.
     if (group) {
       const aria = group.getAttribute('aria-label');
-      if (aria) return aria;
+      if (aria) return cleanText(aria);
       const labelledBy = group.getAttribute('aria-labelledby');
       if (labelledBy) {
         const parts = labelledBy.split(/\s+/)
-          .map((id) => el.ownerDocument.getElementById(id))
-          .filter(Boolean)
+          .map((id) => doc.getElementById(id)).filter(Boolean)
           .map((n) => cleanText(n.textContent));
         if (parts.length) return parts.join(' ');
       }
-      const legend = group.querySelector('legend, .legend, [class*="question" i], [class*="label" i]');
-      if (legend) return cleanText(legend.textContent);
     }
-    // No fieldset: look for a heading-ish node just above the group of inputs.
+
+    // Walk up from the first option in the group, not from whichever one we
+    // happen to be looking at: the second radio's previous sibling is the
+    // first radio's own "Yes".
+    let first = el;
+    const name = el.getAttribute('name');
+    if (name) {
+      const type = (el.type || '').toLowerCase();
+      const siblings = doc.querySelectorAll(
+        `input[type="${type}"][name="${cssEscape(name)}"]`);
+      if (siblings.length) first = siblings[0];
+    }
+    const anchor = first.closest('label') || first;
+    const near = previousLabelish(anchor);
+
+    const legendNode = group &&
+      group.querySelector('legend, .legend, [class*="question" i], [class*="label" i]');
+    const legend = legendNode ? cleanText(legendNode.textContent) : '';
+
+    if (near && (/\?\s*$/.test(near) || near.length >= 18)) return near;
+    if (legend) return legend;
+    if (near) return near;
+
     const holder = el.closest('div, td, li, section');
     if (holder) {
       const prev = previousLabelish(holder);

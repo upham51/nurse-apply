@@ -7,11 +7,36 @@
  */
 'use strict';
 
-importScripts('/src/schema/profile.js', '/src/lib/storage.js');
+importScripts('/src/schema/profile.js', '/src/lib/storage.js', '/src/lib/provider.js');
 
 const NA = self.NA;
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
+
+/**
+ * Kept identical to NA.autopilot.SYSTEM, which the content script cannot hand
+ * over because the request is built here where the key lives.
+ */
+const AUTOPILOT_SYSTEM = [
+  'You fill in nursing job application forms from a nurse\'s stored profile.',
+  '',
+  'Reply with a single JSON object mapping field id to the value to enter.',
+  'JSON only, no explanation.',
+  '',
+  'Rules:',
+  '1. Where a field lists options, the value MUST be exactly one of them,',
+  '   copied character for character. Never invent an option.',
+  '2. Omit a field entirely when the profile does not answer it. A missing',
+  '   answer is correct; a guessed one is not. Never invent a licence number,',
+  '   a date, an employer, a certification or a number of years.',
+  '3. Dates use the format shown on the field.',
+  '4. A yes/no question maps to whichever option matches the profile.',
+  '5. Free-text answers must be built from the profile\'s own wording. Do not',
+  '   write marketing prose and do not claim experience it does not list.',
+  '6. If a question asks about wrongdoing, discipline, termination, criminal',
+  '   history, exclusion from federal programmes, malpractice or drug testing',
+  '   history, omit it. Those are never yours to answer.'
+].join('\n');
 
 /* ------------------------------------------------------------ api client */
 
@@ -293,17 +318,37 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
         });
       return true;
 
+    case 'llm:fillStep':
+      // The key stays in the service worker. A content script never sees it,
+      // which matters because content scripts share a tab with the portal.
+      NA.storage.getSettings()
+        .then(async (settings) => {
+          if (!settings.autopilot) return respond({ ok: false, error: 'Autopilot is switched off.' });
+          try {
+            const text = await NA.provider.chat(settings, {
+              system: AUTOPILOT_SYSTEM,
+              user: JSON.stringify({
+                profile: msg.profile,
+                posting: msg.context || {},
+                fields: msg.fields
+              }),
+              json: true,
+              maxTokens: 2600,
+              temperature: 0
+            });
+            respond({ ok: true, text });
+          } catch (e) {
+            respond({ ok: false, error: e.message });
+          }
+        });
+      return true;
+
     case 'llm:test':
       NA.storage.getSettings()
         .then(async (settings) => {
           try {
             const merged = Object.assign({}, settings, msg.override || {});
-            const res = await callAnthropic(merged, {
-              model: merged.mappingModel,
-              max_tokens: 16,
-              messages: [{ role: 'user', content: 'Reply with the single word: ready' }]
-            });
-            respond({ ok: true, text: firstText(res).trim() });
+            respond({ ok: true, text: await NA.provider.test(merged) });
           } catch (e) {
             respond({ ok: false, error: e.message });
           }
@@ -372,7 +417,7 @@ const CONTENT_FILES = [
   'src/content/adapters/successfactors.js', 'src/content/adapters/symplr.js',
   'src/content/adapters/linkedin.js', 'src/content/adapters/indeed.js',
   'src/content/adapters/registry.js', 'src/content/mapper.js',
-  'src/content/hud.js', 'src/content/index.js'
+  'src/content/autopilot.js', 'src/content/hud.js', 'src/content/index.js'
 ];
 const CSS_FILES = ['src/content/hud.css'];
 const DYNAMIC_ID = 'nurseapply-user-enabled';

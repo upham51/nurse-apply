@@ -16,6 +16,11 @@
 
   const DEFAULT_SETTINGS = {
     apiKey: '',
+    provider: 'moonshot',
+    baseUrl: '',
+    model: '',
+    autopilot: false,
+    autoAdvance: true,
     mappingModel: 'claude-haiku-4-5-20251001',
     parsingModel: 'claude-sonnet-5',
     enableLlmFallback: false,

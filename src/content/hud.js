@@ -18,7 +18,7 @@
   let els = {};
   let state = {
     filled: 0, total: 0, skipped: [], suggested: [],
-    status: 'idle', stepLabel: '', adapterLabel: '', drawerOpen: false
+    status: 'idle', stepLabel: '', adapterLabel: '', modelError: '', drawerOpen: false
   };
   let handlers = {};
 
@@ -194,17 +194,21 @@ textarea {
     const p = pending().length + state.suggested.length;
 
     els.dot.className = 'dot' +
-      (state.status === 'filling' ? ' busy' : (p ? ' warn' : ''));
+      (state.status === 'filling' || state.status === 'thinking' ? ' busy'
+        : (state.modelError ? ' warn' : (p ? ' warn' : '')));
 
     if (state.status === 'idle' && state.total === 0) {
       els.count.textContent = 'NurseApply';
     } else if (state.status === 'filling') {
       els.count.innerHTML = `Filling <b>${state.filled}</b>/${state.total}`;
+    } else if (state.status === 'thinking') {
+      els.count.textContent = 'Working out the rest…';
     } else {
       els.count.innerHTML = `<b>${state.filled}</b>/${state.total} filled`;
     }
 
     const bits = [];
+    if (state.modelError) bits.push(state.modelError.slice(0, 90));
     if (state.adapterLabel) bits.push(state.adapterLabel);
     if (state.stepLabel) bits.push(state.stepLabel);
     els.meta.textContent = bits.join(' · ');

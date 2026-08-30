@@ -149,10 +149,18 @@
   <details class="panel">
     <summary>Settings <span class="hint">API key, model fallback, backup</span><span class="chev">›</span></summary>
     <div class="panel-body">
-      <p class="note">A key is optional. Resume import and form filling both work without one:
-        resumes are read and parsed on this machine, and form fields are matched by platform
-        adapters and nursing-specific rules.</p>
-      <p class="note">The model fallback is off by default. When it is on, NurseApply sends
+      <p class="note"><strong>Autopilot</strong> is what fills a whole application. The rules
+        handle the fields they recognise, then the model is given the remaining questions and your
+        profile and writes an answer into each one. With it on, you press Next and it fills the new
+        step as it appears, all the way to Submit, which it never presses.</p>
+      <p class="note">It never sends, and never answers, the questions about discipline,
+        termination, criminal history, exclusions, malpractice or drug screening. Those are removed
+        before the request is built. An answer that is not one of a dropdown's real options is
+        thrown away rather than typed.</p>
+      <p class="note">Your key is stored on this machine, is used only from the extension's
+        background page so no website can read it, and is left out of profile exports. Any
+        OpenAI-compatible provider works, so you are not tied to one company.</p>
+      <p class="note">The older field-mapping fallback is off by default. When it is on, NurseApply sends
         <strong>only the structure of the form</strong>: control type, the visible label, and the
         options a dropdown offers. Your name, license number, immunization dates and every other
         value stay on this machine. Answers are cached per form layout, so a given hospital
@@ -180,6 +188,7 @@
 
 <script src="../schema/profile.js"></script>
 <script src="../lib/storage.js"></script>
+<script src="../lib/provider.js"></script>
 <script src="../lib/docx.js"></script>
 <script src="../lib/pdftext.js"></script>
 <script src="../lib/resumeParse.js"></script>

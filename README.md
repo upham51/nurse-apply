@@ -63,6 +63,33 @@ re-render discards it. Every write in `domUtils.js` calls the native setter take
 against a simulated controlled React input, and includes a negative control: a naive
 assignment on an identically guarded field, which the simulation must discard.
 
+### Autopilot
+
+The rule engine is exact and free, so it goes first. Autopilot handles what is
+left, which on a real application is most of it: the questions each hospital
+invents, the dropdowns whose options no rule anticipated, the free-text boxes.
+The model is given the remaining fields and the profile and returns a value for
+each. With auto-advance on, pressing Next fills the new step as it renders, all
+the way to Submit, which is never pressed.
+
+Two invariants are enforced in code rather than trusted to the model:
+
+1. Anything the knockout guard blocks is never sent. The model does not get the
+   chance to answer a question about discipline, termination, criminal history
+   or exclusions, because those fields are removed before the request is built.
+2. For a control with a fixed set of options, a returned value that is not one
+   of them is discarded rather than typed.
+
+The key lives in the service worker and is never handed to a content script, so
+no website shares a page with it. Any OpenAI-compatible provider works, which
+covers Kimi, DeepSeek, Groq, OpenRouter, OpenAI and anything self-hosted;
+Anthropic has its own small adapter.
+
+`npm run test:autopilot` fills a four-step, sixty-field nursing application
+against a stand-in model that deliberately misbehaves, and asserts both
+invariants along with the coverage. Point it at a real provider with
+AUTOPILOT_BASE_URL, AUTOPILOT_KEY and AUTOPILOT_MODEL.
+
 ### Three ways in, because one is not enough
 
 Rule-based extraction of a free-form document is wrong often enough, and
