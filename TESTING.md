@@ -23,9 +23,12 @@ field stays blank, that the work authorization question is answered from the pro
 that a "why do you want to work here" prompt is drafted into the drawer rather than written
 into the form.
 
-`npm run test:resume` parses three resumes written in different styles (single column with
-all-caps headers, pipe-separated headers with the date on its own line, and a terse layout with
-the employer above the date and bare years) and asserts every extracted field. It also asserts
+`npm run test:resume` parses five resumes written in different styles (single column with all-caps
+headers; pipe-separated headers with the date on its own line; a terse layout with the employer
+above the date and bare years; a Word layout that puts the section label in a left margin so it
+extracts as a line prefix, with the date before the employer and no bullet characters; and a
+pipe-delimited layout that puts the employer above the title and states credentials as
+"RN License | DSPS | 02/29/2028") and asserts every extracted field. It also asserts
 the parser's refusals: no license, certification or NPI is invented when the document does not
 state one, an NPI failing its check digit is rejected with a reason, and an empty extraction
 explains itself rather than returning silence.

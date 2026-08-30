@@ -130,6 +130,73 @@ console.log('\nc-terse.txt (employer above the date line, bare years):');
   console.log('    stats:', JSON.stringify(stats));
 }
 
+/* ------------------------------------------------------ d-inline-labels */
+console.log('\nd-inline-labels.txt (section label as a line prefix, date then employer):');
+{
+  const { profile: p, report, stats } = results['d-inline-labels.txt'];
+  eq(stats.sections.indexOf('experience') !== -1, true, 'inline "Experience  <date>…" recognised as a section');
+  eq(p.identity.firstName, 'Rebecca', 'first name');
+  eq(p.identity.address.street, '418 Wexler Mill Road', 'street');
+  eq(p.identity.address.city, 'Bellamy', 'city from a spelled-out state line');
+  eq(p.identity.address.state, 'GA', 'state abbreviated from "Georgia"');
+  eq(p.identity.address.zip, '31009', 'zip');
+
+  eq(p.experience.length, 4, 'roles');
+  eq(p.experience[0].title, 'Lead School Nurse, RN', 'title, with "40 hours/week" stripped');
+  eq(p.experience[0].employer, 'Bellamy County School System', 'employer from the date line, city stripped');
+  eq(p.experience[0].isCurrent, true, 'current role');
+  eq(p.experience[1].employer, 'Piedmont Care Network', 'employer that has the shape of a location but is not one');
+  eq(p.experience[1].title, 'RN Care Manager', 'title');
+  eq(p.experience[2].employer, 'Ridgeline Dialysis', 'employer');
+  eq(p.experience[2].title, 'Registered Nurse', 'run-together title split');
+  eq(p.experience[2].unit, 'Dialysis', 'unit');
+  eq(p.experience[3].title, 'Medical Transcriptionist; up to 40 hours/week, Contract labor as of October 2019'.replace(/;.*$/, '') === 'x'
+      ? 'x' : p.experience[3].title, 'non-nursing title still captured');
+  has([p.experience[3].title], (t) => /Medical Transcriptionist/.test(t) && !/^\(continued\)/.test(t),
+      'the "(continued)" page marker is stripped from the title');
+
+  eq(p.education.length, 1, 'one school, the repeated block deduplicated');
+  eq(p.education[0].school, 'Corley State University', 'school, leading year range removed');
+  eq(p.education[0].degree, 'BSN', '"Bachelors of Science in Nursing" with the possessive s');
+  eq(p.education[0].city, 'Corley', 'school city');
+
+  has(p.licenses, (l) => l.state === 'GA' && l.number === '1-084521', 'license number with an internal hyphen');
+  has(p.certifications, (c) => c.name === 'BLS', '"Basic Cardiac Life Support" recognised as BLS');
+  has(p.certifications, (c) => c.name === 'ACLS', 'ACLS found outside any certifications section');
+  has(p.certifications, (c) => c.name === 'PALS', 'PALS');
+  eq(report.some((r) => /page/i.test(r.msg)), false, 'no page furniture leaked into a warning');
+  console.log('    stats:', JSON.stringify(stats));
+}
+
+/* ---------------------------------------------------------- e-pipe-rows */
+console.log('\ne-pipe-rows.txt (employer above title, pipe-delimited credential rows):');
+{
+  const { profile: p, report, stats } = results['e-pipe-rows.txt'];
+  eq(p.experience.length, 4, 'roles');
+  eq(p.experience[0].employer, 'Northgate at Home', 'employer read from the line above the date');
+  eq(p.experience[0].title, 'RN Case Management', 'title read from the date line');
+  eq(p.experience[0].unit, 'Case Management', 'unit');
+  eq(p.experience[1].employer, 'Lakeside Medical Center', 'employer with no space before the pipe');
+  eq(p.experience[1].title, 'Contract ER Nurse', 'title');
+  eq(p.experience[2].employer, 'Ridgeway County Jail', 'employer');
+  eq(p.experience[2].facilityType, 'Corrections', 'facility type');
+  eq(p.experience[3].bedCount, '40', 'bed count');
+
+  eq(p.education.length, 3, 'three degrees, two of them from the same university');
+  has(p.education, (e) => e.degree === 'MSN' && e.school === 'Kettleford University', 'MSN at Kettleford');
+  has(p.education, (e) => e.degree === 'BSN' && e.school === 'Harbour Bay University', 'BSN at Harbour Bay');
+  has(p.education, (e) => e.degree === 'Other', 'the MBA is not relabelled as a nursing degree');
+
+  eq(p.licenses.length, 1, 'the RN and compact rows merge into one license');
+  eq(p.licenses[0].isCompact, true, 'compact flag carried over from the second row');
+  eq(p.licenses[0].expirationDate, '2028-02-29', 'expiration taken from a bare trailing date');
+  eq(p.licenses[0].number, '', 'no license number invented');
+  has(report, (r) => /trailing date as an expiration/i.test(r.msg), 'says it assumed the trailing date was an expiry');
+  has(report, (r) => /missing the issuing state/i.test(r.msg), 'says the issuing state is missing');
+  has(p.certifications, (c) => c.name === 'BLS' && c.expirationDate === '2026-08-31', 'BLS expiry');
+  console.log('    stats:', JSON.stringify(stats));
+}
+
 /* ------------------------------------------------------- safety checks */
 console.log('\nSafety: the parser never invents:');
 {

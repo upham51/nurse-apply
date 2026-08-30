@@ -62,20 +62,23 @@
     ['Hospital', /\bhospital\b|\bmedical\s+cent(er|re)\b|\bhealth\s+system\b|\bregional\s+medical\b|\bmemorial\b/i]
   ];
 
-  const EMPLOYER_TOKENS = /\b(hospital|medical\s+cent(er|re)|health(care)?(\s+system)?|clinic|cent(er|re)|regional|memorial|saint|st\.|university|county|community|kaiser|providence|hca|tenet|sutter|trinity|ascension|banner|mercy|baptist|methodist|presbyterian|va\b|veterans|children'?s|group|associates|llc|inc\.?|corporation|home\s+health|hospice|rehabilitation)\b/i;
+  const EMPLOYER_TOKENS = /\b(hospital|medical\s+cent(er|re)|health(care)?(\s+system)?|clinic|cent(er|re)|regional|memorial|saint|st\.|university|county|community|kaiser|providence|hca|tenet|sutter|trinity|ascension|banner|mercy|baptist|methodist|presbyterian|aurora|va\b|veterans|children'?s|group|associates|llc|inc\.?|corporation|home\s+health|hospice|rehabilitation|school\s+system|schools?\b|district|network|agency|jail|prison|correctional|advocacy|infirmary|institute|academy|partners|dialysis|surgery\s+cent(er|re)|imaging|laborator(y|ies)|pharmacy|urgent\s+care|transcription)\b/i;
+
+  /** A nursing role noun is the single strongest signal that a line is a title. */
+  const ROLE_NOUN = /\b(nurse|rn|lpn|lvn|aprn|np|crna|cns|nursing)\b/i;
 
   const TITLE_TOKENS = /\b(registered\s+nurse|nurse|rn\b|lpn\b|lvn\b|aprn|np\b|crna|cns\b|charge|staff|clinical|preceptor|supervisor|manager|director|coordinator|educator|specialist|practitioner|technician|tech\b|assistant|lead|per\s+diem|travel(er)?|float)\b/i;
 
   const DEGREE_PATTERNS = [
     ['DNP', /\bD\.?N\.?P\b|\bdoctor\s+of\s+nursing\s+practice\b/i],
-    ['MSN', /\bM\.?S\.?N\b|\bmaster\s+of\s+science\s+in\s+nursing\b|\bmaster'?s\s+.{0,12}nursing\b/i],
-    ['BSN', /\bB\.?S\.?N\b|\bbachelor\s+of\s+science\s+in\s+nursing\b|\bbachelor'?s\s+.{0,12}nursing\b/i],
-    ['ADN', /\bA\.?D\.?N\b|\bA\.?S\.?N\b|\bassociate\s+(degree|of\s+science)\s+in\s+nursing\b|\bassociate'?s\s+.{0,12}nursing\b/i],
+    ['MSN', /\bM\.?S\.?N\b|\bmasters?\s+of\s+science\s+in\s+nursing\b|\bmaster'?s\s+.{0,12}nursing\b/i],
+    ['BSN', /\bB\.?S\.?N\b|\bbachelors?\s+of\s+science\s+in\s+nursing\b|\bbachelor'?s\s+.{0,12}nursing\b/i],
+    ['ADN', /\bA\.?D\.?N\b|\bA\.?S\.?N\b|\bassociates?\s+(degree|of\s+science)\s+in\s+nursing\b|\bassociate'?s\s+.{0,12}nursing\b/i],
     ['Diploma', /\bdiploma\s+in\s+nursing\b|\bnursing\s+diploma\b/i]
   ];
 
   const CERT_PATTERNS = [
-    ['BLS', /\bB\.?L\.?S\b|\bbasic\s+life\s+support\b|\bCPR\s+certif\w*\b/i],
+    ['BLS', /\bB\.?L\.?S\b|\bbasic\s+(cardiac\s+)?life\s+support\b|\bCPR\s+certif\w*\b/i],
     ['ACLS', /\bA\.?C\.?L\.?S\b|\badvanced\s+cardiac\s+life\s+support\b|\badvanced\s+cardiovascular\s+life\s+support\b/i],
     ['PALS', /\bP\.?A\.?L\.?S\b|\bpediatric\s+advanced\s+life\s+support\b/i],
     ['NRP', /\bN\.?R\.?P\b|\bneonatal\s+resuscitation\b/i],
@@ -183,15 +186,21 @@
    * word that has been exploded into glyphs.
    */
   function collapseLetterSpacing(line) {
-    if (!/(^|\s)\S(\s|$)/.test(line)) return line.replace(/\s{2,}/g, ' ');
-    const groups = line.split(/\s{2,}/);
+    const groups = String(line).split(/\s{2,}/);
     const rebuilt = groups.map((group) => {
       const tokens = group.trim().split(/\s+/);
       if (tokens.length < 3) return group.trim();
       const singles = tokens.filter((t) => t.length === 1).length;
       return singles / tokens.length >= 0.7 ? tokens.join('') : group.trim();
     });
-    return rebuilt.join(' ').replace(/\s{2,}/g, ' ').trim();
+    // The double space is kept deliberately. It is the only surviving record of
+    // a wide gap, and inline section labels ("Experience  Jan 2026 - present")
+    // are detected from it. Squeezing happens after sectioning, in squeeze().
+    return rebuilt.join('  ').replace(/\s{3,}/g, '  ').trim();
+  }
+
+  function squeeze(line) {
+    return String(line).replace(/\s{2,}/g, ' ').trim();
   }
 
   /* -------------------------------------------------------------- shapes */
@@ -200,6 +209,7 @@
     email: /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/,
     phone: /(?:\+?1[\s.\-]?)?\(?\b([2-9]\d{2})\)?[\s.\-]?(\d{3})[\s.\-]?(\d{4})\b/,
     cityStateZip: /^(.*?),\s*([A-Z]{2})\.?\s+(\d{5})(?:-\d{4})?\b/,
+    cityStateNameZip: /^(.*?),\s*([A-Za-z]{4,20})\.?\s+(\d{5})(?:-\d{4})?\b/,
     cityState: /^([A-Za-z .'\-]+),\s*([A-Z]{2})\b\s*$/,
     street: /^\d{1,6}\s+[A-Za-z0-9 .'#\-]{3,}$/,
     zip: /\b\d{5}(?:-\d{4})?\b/,
@@ -213,7 +223,7 @@
     beds: /\b(\d{2,4})\s*[-–\s]?\s*bed\b/i,
     trauma: /\blevel\s+(I{1,3}V?|IV|[1-4])\s+trauma\b/i,
     npiLabelled: /\bnpi\b[^0-9]{0,20}(\d{10})\b/i,
-    licenseNumber: /\b(?:licen[cs]e|lic\.?|#)\s*(?:no\.?|number|#)?\s*[:#]?\s*([A-Z]{0,3}[\-\s]?\d{4,12}[A-Z]?)\b/i,
+    licenseNumber: /\b(?:licen[cs]e|lic\.?|#)\s*(?:no\.?|number|#)?\s*[:#]?\s*([A-Z]{0,4}[-\s]?\d[\d-]{3,14}[A-Z]?)\b/i,
     bareLicenseNumber: /\b([A-Z]{2,3}\s?\d{5,10})\b/,
     gpa: /\bgpa\b\s*:?\s*(\d\.\d{1,2})\b/i
   };
@@ -285,13 +295,28 @@
       const key = l.trim().toLowerCase();
       counts.set(key, (counts.get(key) || 0) + 1);
     });
-    return lines.filter((l) => {
+    // Anything from the contact block that turns up again later is a page
+    // header. It only needs to appear twice to be furniture, and left in place
+    // it competes with the real employer on the role that follows it.
+    const headerKeys = new Set();
+    for (let i = 0; i < Math.min(lines.length, 8); i++) {
+      const k = lines[i].trim().toLowerCase();
+      if (k.length > 3) headerKeys.add(k);
+    }
+    let seenPastHeader = 0;
+    return lines.filter((l, i) => {
+      const key0 = l.trim().toLowerCase();
+      if (i >= 8 && headerKeys.has(key0)) { seenPastHeader++; return false; }
+      return keep(l);
+    });
+
+    function keep(l) {
       const t = l.trim();
       if (/\bpage\s+\d+\s*(of|\/)\s*\d+\b/i.test(t)) return false;
       if (/^\d{1,2}\s*(of|\/)\s*\d{1,2}$/i.test(t)) return false;
       const key = t.toLowerCase();
       return !(counts.get(key) >= 3 && t.length < 90);
-    });
+    }
   }
 
   function splitSections(lines) {
@@ -300,9 +325,29 @@
     lines.forEach((line) => {
       const name = headerName(line);
       if (name) { current = name; sections[current] = sections[current] || []; return; }
-      (sections[current] = sections[current] || []).push(line);
+
+      // Older Word resumes put the section label in a left-hand column, which
+      // extracts as a prefix on the first line of content:
+      // "Experience  Jan 2026 - present  Daleville City Schools  Daleville, AL".
+      // Without this the whole document lands in one unlabelled bucket.
+      const inline = inlineHeader(line);
+      if (inline) {
+        current = inline.section;
+        sections[current] = sections[current] || [];
+        if (inline.rest) sections[current].push(squeeze(inline.rest));
+        return;
+      }
+      (sections[current] = sections[current] || []).push(squeeze(line));
     });
     return sections;
+  }
+
+  function inlineHeader(line) {
+    const m = /^([A-Za-z][A-Za-z &]{2,28}?)\s*(?::|\s{2,})\s*(\S.*)$/.exec(line);
+    if (!m) return null;
+    const section = DESPACED_INDEX.get(despace(m[1]));
+    if (!section) return null;
+    return { section, rest: m[2].trim() };
   }
 
   function headerName(line) {
@@ -365,6 +410,12 @@
     // middot separator, or a trailing city and state.
     if (/\s[·•|]\s/.test(t)) return false;
     if (/,\s*[A-Z]{2}\.?$/.test(t) || /\s[·•]\s*(Remote|Onsite|Hybrid)\s*$/i.test(t)) return false;
+    // A duty ends in a full stop. A job title and an employer do not, with the
+    // narrow exception of an abbreviation.
+    if (/\.\s*$/.test(t) && !/\b(Inc|LLC|L\.L\.C|Ltd|Co|Corp|St|Dr|Jr|Sr)\.\s*$/i.test(t)) return true;
+    // A sentence boundary inside the line: "…Registered Nurse. Responsible for…".
+    // Neither a job title nor an employer contains one.
+    if (/[a-z]{2}\.\s+[A-Z]/.test(t)) return true;
     const words = t.split(/\s+/).length;
     if (words >= 16) return true;
     if (words >= 8 && /[.;,]\s*$/.test(t)) return true;
@@ -441,6 +492,19 @@
         id.address.zip = csz[3];
         break;
       }
+      const named = RE.cityStateNameZip.exec(head[i]);
+      if (named && !id.address.city) {
+        const abbr = S().STATES.find((a) =>
+          S().STATE_NAMES[a].toLowerCase() === named[2].toLowerCase());
+        if (abbr) {
+          id.address.city = named[1].trim();
+          id.address.state = abbr;
+          id.address.zip = named[3];
+          const prev = head[i - 1];
+          if (prev && RE.street.test(prev)) id.address.street = prev.trim();
+          break;
+        }
+      }
       const cs = RE.cityState.exec(head[i]);
       if (cs && !id.address.city) {
         id.address.city = cs[1].trim();
@@ -509,6 +573,7 @@
     const candidates = pool.filter((l) => /\blicen[cs]e|licensure|\bRN\b|\bLPN\b|\bAPRN\b|\bCRNA\b|\bCNS\b/i.test(l));
 
     const out = [];
+    const assumedExpiry = [];
     candidates.forEach((line) => {
       if (!/\blicen[cs]e|licensure|#|\bno\.?\b|\bnumber\b/i.test(line)) return;
 
@@ -539,11 +604,26 @@
       }
 
       const expPart = /\b(exp\w*|until|valid\s+(through|until)|renewal)\b[^\n]{0,30}/i.exec(line);
-      const expiration = expPart ? toIsoDay(expPart[0]) : '';
+      let expiration = expPart ? toIsoDay(expPart[0]) : '';
+      // "RN License | DSPS | 02/29/2028" states an expiry with no keyword to
+      // announce it. On a delimited credential row the trailing date is the
+      // expiration; the assumption is reported rather than made silently.
+      if (!expiration && /[|,]/.test(line)) {
+        const tail = line.split(/[|,]/).pop();
+        const guessed = toIsoDay(tail);
+        if (guessed) {
+          expiration = guessed;
+          assumedExpiry.push(line.trim());
+        }
+      }
       const issuePart = /\b(issued?|effective|since|obtained)\b[^\n]{0,30}/i.exec(line);
       const issueDate = issuePart ? toIsoDay(issuePart[0]) : '';
 
-      if (!state && !number) return;
+      // A line can state a real licence with no number on it at all:
+      // "RN License | DSPS | 02/29/2028". Recording the expiration and the
+      // compact flag is worth more than discarding the whole line, as long as
+      // the missing number is reported rather than fabricated.
+      if (!state && !number && !expiration) return;
 
       out.push({
         type, state, number, issueDate, expirationDate: expiration,
@@ -582,14 +662,35 @@
 
     const deduped = [];
     out.forEach((l) => {
-      if (!deduped.some((d) => d.type === l.type && d.state === l.state && d.number === l.number)) {
-        deduped.push(l);
+      const match = deduped.find((d) =>
+        d.type === l.type && d.state === l.state && d.number === l.number);
+      if (match) {
+        // "RN License" and "Compact State Nurse License" are one licence
+        // described twice; keep whichever row carried the compact flag.
+        match.isCompact = match.isCompact || l.isCompact;
+        match.expirationDate = match.expirationDate || l.expirationDate;
+        return;
       }
+      deduped.push(l);
     });
     if (deduped.length) deduped[0].isPrimaryState = true;
+    if (assumedExpiry.length) {
+      report.push({ level: 'info',
+        msg: `Took the trailing date as an expiration on ${assumedExpiry.length} license line${assumedExpiry.length === 1 ? '' : 's'}. Check it.` });
+    }
     if (!deduped.length) {
-      report.push({ level: 'warn', msg: 'No license number found. Most portals will not accept an application without one.' });
+      report.push({ level: 'warn', msg: 'No license found. Most portals will not accept an application without one.' });
     } else {
+      const numberless = deduped.filter((l) => !l.number);
+      if (numberless.length) {
+        report.push({ level: 'warn',
+          msg: `${numberless.length} license entr${numberless.length === 1 ? 'y has' : 'ies have'} no license number on the resume. Portals require it, so add it.` });
+      }
+      const stateless = deduped.filter((l) => !l.state);
+      if (stateless.length) {
+        report.push({ level: 'warn',
+          msg: `${stateless.length} license entr${stateless.length === 1 ? 'y is' : 'ies are'} missing the issuing state. Set it yourself rather than letting a portal guess.` });
+      }
       deduped.forEach((l) => {
         if (!l.expirationDate) {
           report.push({ level: 'info', msg: `${l.type} ${l.state || ''} license has no expiration date on the resume. Add it.` });
@@ -602,8 +703,14 @@
   /* ------------------------------------------------------ certifications */
 
   function parseCertifications(sections, lines, report) {
-    const pool = (sections.certifications || []).concat(sections.licenses || [])
-      .concat(sections.skills || []).concat(sections.header || []);
+    // People list credentials wherever they like: in a dedicated section, in
+    // education, or inline in a summary. Prefer a real section, but fall back
+    // to the whole document rather than reporting none.
+    let pool = (sections.certifications || []).concat(sections.licenses || [],
+      sections.skills || [], sections.header || [], sections.summary || []);
+    if (!pool.length || !CERT_PATTERNS.some(([, re]) => pool.some((l) => re.test(l)))) {
+      pool = lines;
+    }
     const found = new Map();
 
     pool.forEach((line) => {
@@ -682,8 +789,23 @@
         }
         if (degree) current.degree = degree;
         if (schoolish) {
-          current.school = line
-            .split(/\s*[·•|]\s*/)[0]
+          // "Master of Science in Nursing (AGPCNP) | Walden University" puts
+          // the degree and the school on one line. Take the segment that names
+          // an institution, not simply the first one.
+          const segments = line.split(/\s*[·•|]\s*/).map((x) => x.trim()).filter(Boolean);
+          const institution = segments.find((seg) =>
+            /\b(university|college|school\s+of\s+nursing|institute|academy)\b/i.test(seg));
+          const rawSchool = (institution || segments[0] || line)
+            // A leading "1995 - 2001" has to go before the trailing-year rule
+            // runs, or that rule truncates the entire line to nothing.
+            .replace(/^\s*(?:19|20)\d{2}\s*[-–—]\s*(?:(?:19|20)\d{2}|present)\s*/i, '')
+            .replace(/^\s*(?:19|20)\d{2}\s+(?=[A-Z])/, '');
+          const schoolLocation = locationSuffix(rawSchool);
+          if (schoolLocation) {
+            if (!current.city) current.city = schoolLocation.city;
+            if (!current.state) current.state = schoolLocation.state;
+          }
+          current.school = stripTrailingLocation(rawSchool)
             .replace(/\bgraduat\w*\b.*$/i, '')
             .replace(/\b(19|20)\d{2}\b.*$/, '')
             .replace(/[,;]\s*(BSN|ADN|ASN|MSN|DNP|RN)\b.*$/i, '')
@@ -706,8 +828,40 @@
       if (!current.major) current.major = 'Nursing';
     });
 
-    const clean = out.filter((e) => e.school || e.degree);
-    clean.forEach((e) => { if (!e.degree) e.degree = 'BSN'; });
+    const seen = [];
+    const clean = out.filter((e) => {
+      if (!e.school && !e.degree) return false;
+      // The same school can appear twice when a layout repeats a block.
+      const school = (e.school || '').toLowerCase().replace(/\W+/g, '');
+      // A repeated block can leave a truncated copy ("Troy State University
+      // Troy"), so one school name that starts with another counts as the
+      // same school. The degree still has to match: two different degrees from
+      // one university are two entries, not a duplicate.
+      const dup = seen.some(([s2, d2]) => {
+        const prefix = s2.indexOf(school) === 0 || school.indexOf(s2) === 0;
+        if (!prefix) return false;
+        if (d2 === e.degree) return true;
+        // A truncated repeat of the same school arrives with no degree on it.
+        // Two genuinely different degrees from one university have the same
+        // school string exactly, not a prefix of it, so they survive.
+        // Dedupe runs before undeclared degrees are labelled 'Other', so an
+        // empty degree counts as undeclared here too.
+        const undeclared = (d) => !d || d === 'Other';
+        const truncated = s2 !== school;
+        return truncated && (undeclared(e.degree) || undeclared(d2));
+      });
+      if (school && dup) return false;
+      seen.push([school, e.degree]);
+      return true;
+    });
+    // Never guess the degree. Defaulting to BSN silently turned an MBA into a
+    // nursing degree on a resume that listed both.
+    const undeclared = clean.filter((e) => !e.degree);
+    undeclared.forEach((e) => { e.degree = 'Other'; });
+    if (undeclared.length) {
+      report.push({ level: 'info',
+        msg: `${undeclared.length} school entr${undeclared.length === 1 ? 'y has' : 'ies have'} no degree the parser recognised. Set the degree yourself.` });
+    }
     if (!clean.length) report.push({ level: 'warn', msg: 'No education section recognised. Add your nursing school by hand.' });
     return clean;
   }
@@ -778,19 +932,25 @@
       dateStripped = '';
     }
 
-    // Take the first couple of non-prose lines after the date as header
-    // candidates, and stop at the first duty line.
+    // Take the lines after the date as header candidates, stopping at the first
+    // duty line. When the date line already carries one of the pair, only one
+    // more line is needed, and taking a second one just invites the first duty
+    // to compete for the employer slot: a duty such as "Coordinated referrals
+    // by communicating with external healthcare providers" scores as an
+    // employer on the word "healthcare".
+    const afterLimit = dateStripped ? 1 : 2;
     const afterLines = [];
-    for (let i = 0; i < block.lines.length && afterLines.length < 2; i++) {
+    for (let i = 0; i < block.lines.length && afterLines.length < afterLimit; i++) {
       const line = block.lines[i];
       if (isBullet(line) || isProse(line)) break;
       afterLines.push(line);
     }
 
-    // The lines above the date only matter when the date sits on a line of its
-    // own. When the date line already carries the title, whatever precedes it
-    // belongs to the previous role.
-    const preceding = dateStripped ? [] : block.preceding;
+    // The lines above the date always matter. Layouts disagree about ordering:
+    // some put "Employer | City, ST" above "Title | dates", others put
+    // "dates  Employer  City, ST" above "Title". Duty lines and page furniture
+    // are filtered out below, so keeping both directions is safe.
+    const preceding = block.preceding;
 
     // Candidates carry where they came from. Resumes overwhelmingly put the job
     // title on the line with the dates and the employer on the line beneath, so
@@ -804,7 +964,10 @@
     // ICU" is one title, not two candidates.
     const candidates = [];
     const pushLine = (line, origin) => {
-      const t = String(line || '').replace(/^\s*[|,]\s*/, '').trim();
+      const t = String(line || '')
+        .replace(/^\s*\((?:cont(?:inued|\.)?)\)\s*/i, '')
+        .replace(/^\s*[|,]\s*/, '')
+        .trim();
       if (!t || t.length > 160) return;
       if (isProse(t) || /\bpage\s+\d+\b/i.test(t)) return;
       splitRuns(t).split(/\s*[|·•]\s*|\s+[—–]\s+/)
@@ -813,22 +976,52 @@
         .filter((seg) => !isLocationOnly(seg))
         .forEach((seg) => candidates.push({ text: seg, origin }));
     };
-    preceding.forEach((l) => pushLine(l, 'preceding'));
+    // Two passes. The block's own lines come first, because they cannot belong
+    // to a neighbouring role. The lines above the date are consulted only when
+    // those are not enough, which keeps the tail of the previous role out of
+    // this one while still reading layouts that put the employer above the
+    // date. Nearest first, since the line directly above the date is far more
+    // often the employer than the one two lines up.
     if (dateStripped) pushLine(dateStripped, 'dateline');
     afterLines.forEach((l) => pushLine(l, 'after'));
+    const needsMore = candidates.length < 2 ||
+      !candidates.some((c) => scoreEmployer(c.text) >= 2) ||
+      !candidates.some((c) => scoreTitle(c.text) >= 2);
+    if (needsMore) preceding.slice().reverse().forEach((l) => pushLine(l, 'preceding'));
 
+    // Position is a tiebreaker, not evidence. Resumes disagree on ordering, so
+    // a large positional bonus reads one family of layouts correctly and the
+    // other backwards. Keyword evidence decides; position only settles ties.
     const scored = candidates.map((c) => ({
       text: c.text,
-      employer: scoreEmployer(c.text) + (c.origin === 'after' ? 1.5 : 0),
-      title: scoreTitle(c.text) + (c.origin === 'dateline' ? 1.5 : 0)
+      origin: c.origin,
+      employer: scoreEmployer(c.text) + (c.origin === 'after' ? 0.4 : 0),
+      title: scoreTitle(c.text) + (c.origin === 'dateline' ? 0.4 : 0)
     }));
 
     const employerPick = scored.slice().sort((a, b) => (b.employer - b.title) - (a.employer - a.title))[0];
     const titlePick = scored.filter((s) => s !== employerPick)
       .sort((a, b) => (b.title - b.employer) - (a.title - a.employer))[0];
 
-    if (employerPick) role.employer = stripTrailingLocation(cleanEntity(employerPick.text));
-    if (titlePick && (titlePick.title > 0 || !role.employer)) role.title = cleanEntity(titlePick.text);
+    if (employerPick) {
+      const cleaned = stripScheduleNoise(cleanEntity(employerPick.text));
+      const loc = locationSuffix(cleaned);
+      role.employer = loc && loc.head ? loc.head : stripTrailingLocation(cleaned);
+    }
+    // A candidate that scores zero is still better than an empty title, as
+    // long as it is not a location or a sentence. "Medical Transcriptionist"
+    // contains no nursing vocabulary and would otherwise be dropped.
+    // A title that scores zero is still the title when it came from this
+    // block's own lines: "Medical Transcriptionist" contains no nursing
+    // vocabulary, and the alternative is leaving the field blank.
+    const titleIsOwn = titlePick && (titlePick.origin === 'dateline' || titlePick.origin === 'after');
+    if (titlePick && (titlePick.title > 0 || !role.employer || titleIsOwn)) {
+      role.title = stripScheduleNoise(firstSentence(cleanEntity(titlePick.text)));
+    }
+    if (role.employer && !role.title) {
+      report.push({ level: 'info',
+        msg: `No job title found for the role at "${role.employer}" starting ${role.startDate}. Add it.` });
+    }
 
     // Only flag a real ambiguity. Position decides most pairs confidently, and
     // a warning on every role is the same as no warning at all.
@@ -886,8 +1079,9 @@
     let s = 0;
     if (EMPLOYER_TOKENS.test(text)) s += 3;
     if (/\b(inc|llc|ltd|corp)\b/i.test(text)) s += 1;
-    if (RE.cityState.test(text) || /,\s*[A-Z]{2}\b/.test(text)) s += 1;
+    if (hasLocationSuffix(text)) s += 1;
     if (TITLE_TOKENS.test(text)) s -= 2;
+    if (ROLE_NOUN.test(text)) s -= 2;
     if (text === text.toUpperCase() && text.length > 6) s += 0.5;
     return s;
   }
@@ -895,20 +1089,87 @@
   function scoreTitle(text) {
     let s = 0;
     if (TITLE_TOKENS.test(text)) s += 3;
+    if (ROLE_NOUN.test(text)) s += 2;
     if (/\b(I{1,3}|IV|[1-4])\b\s*$/.test(text)) s += 0.5;
     if (EMPLOYER_TOKENS.test(text)) s -= 2;
+    if (hasLocationSuffix(text)) s -= 1;
     if (/\b(per\s+diem|full[\s\-]time|part[\s\-]time|prn)\b/i.test(text)) s += 1;
     return s;
   }
 
+  /** Matches ", WI" and ", Alabama" alike. */
+  function hasLocationSuffix(text) {
+    const t = String(text || '').trim();
+    if (/,\s*[A-Z]{2}\.?\s*$/.test(t)) return true;
+    return S().STATES.some((abbr) =>
+      new RegExp(',\\s*' + S().STATE_NAMES[abbr] + '\\s*$', 'i').test(t));
+  }
+
+  /**
+   * Splits a trailing "City, State" off a string, or returns null.
+   *
+   * The city is matched at one word first, then two, then three, so
+   * "Daleville City School Systems Daleville, Alabama" gives up only
+   * "Daleville" rather than swallowing "School Systems Daleville" the way a
+   * greedy pattern does. Both "OR" and "Oregon" are accepted, with or without
+   * the comma that a merged two-column layout tends to lose.
+   */
+  function locationSuffix(text) {
+    const t = String(text || '').trim();
+    if (!t) return null;
+    const stateAlt = S().STATES.map((a) => S().STATE_NAMES[a].replace(/ /g, '\\s+'))
+      .concat(S().STATES).join('|');
+    const word = "[A-Z][A-Za-z.'\\-]*";
+    for (let n = 1; n <= 3; n++) {
+      const cityPattern = Array(n).fill(word).join('\\s+');
+      const re = new RegExp('(^|[,\\s])(' + cityPattern + ')\\s*,\\s*(' + stateAlt + ')\\.?\\s*$');
+      const m = re.exec(t);
+      if (!m) continue;
+      const abbr = m[3].length === 2
+        ? m[3].toUpperCase()
+        : (S().STATES.find((a) => S().STATE_NAMES[a].toLowerCase() === m[3].toLowerCase().replace(/\s+/g, ' ')) || '');
+      if (!abbr || S().STATES.indexOf(abbr) === -1) continue;
+      let head = t.slice(0, m.index).replace(/[,\s]+$/, '');
+      let city = m[2].trim();
+      // "Ft. Rucker", "St. Louis", "San Rafael": taking only the final word
+      // leaves the prefix stranded on the employer.
+      const prefix = /(^|[\s,])((?:Ft|Mt|St|Saint|San|Santa|Los|Las|New|North|South|East|West|Port|Lake|Fort|Mount)\.?)\s*$/.exec(head);
+      if (prefix) {
+        head = head.slice(0, prefix.index).replace(/[,\s]+$/, '');
+        city = prefix[2] + ' ' + city;
+      }
+      return { head, city, state: abbr };
+    }
+    return null;
+  }
+
   /**
    * An employer field wants "Providence St Vincent Medical Center", not the
-   * same string with the city appended, so a trailing ", City, ST" comes off.
+   * same string with the city appended.
    */
   function stripTrailingLocation(text) {
-    return text
-      .replace(/,\s*[A-Za-z .'\-]{2,30},\s*[A-Z]{2}\.?\s*$/, '')
-      .replace(/,\s*[A-Z]{2}\.?\s*$/, '')
+    const t = String(text || '').trim();
+    const loc = locationSuffix(t);
+    if (loc && loc.head) return loc.head;
+    // No city, just a trailing state.
+    let out = t.replace(/,\s*[A-Z]{2}\.?\s*$/, '');
+    for (let i = 0; i < S().STATES.length; i++) {
+      const name = S().STATE_NAMES[S().STATES[i]];
+      const stripped = out.replace(new RegExp(',\\s*' + name.replace(/ /g, '\\s+') + '\\.?\\s*$', 'i'), '');
+      if (stripped !== out) { out = stripped; break; }
+    }
+    return out.replace(/[,\s]+$/, '').trim();
+  }
+
+  /**
+   * Removes payroll detail that rides along with a job title on older resumes:
+   * "Lead School Nurse, RN  40 hours/week" is a title plus a schedule.
+   */
+  function stripScheduleNoise(text) {
+    return String(text || '')
+      .replace(/[,|\s]*\d{1,2}\s*\+?\s*(hours?|hrs?)\s*(a|per|\/)?\s*(week|wk)?\.?\s*$/i, '')
+      .replace(/[,|\s]*(full|part)[\s-]?time\s*(status)?\s*$/i, '')
+      .replace(/\s*\((salaried|hourly|per\s*diem|prn)\)\s*$/i, '')
       .replace(/[,\s]+$/, '')
       .trim();
   }
@@ -947,17 +1208,46 @@
     }).join('');
   }
 
-  /** "Crescent City, CA" is where a job was, never who the employer was. */
+  /**
+   * "Crescent City, CA" is where a job was, never who the employer was.
+   *
+   * The city part is capped at three words and must not contain employer
+   * vocabulary, because "Alabama Care Network Dothan, Alabama" has the shape of
+   * a location and is in fact the employer plus its city.
+   */
   function isLocationOnly(text) {
     const t = String(text || '').trim();
     if (!t || t.length > 40) return false;
-    const m = /^([A-Za-z .'\-]{2,30}),\s*([A-Z]{2})\.?$/.exec(t);
-    if (m && S().STATES.indexOf(m[2]) !== -1) return true;
-    return /^(remote|onsite|on-?site|hybrid|nationwide|various\s+locations?)$/i.test(t);
+    if (/^(remote|onsite|on-?site|hybrid|nationwide|various\s+locations?)$/i.test(t)) return true;
+
+    const m = /^([A-Za-z .'\-]{2,30}),\s*([A-Za-z]{2,20})\.?$/.exec(t);
+    if (!m) return false;
+    const city = m[1].trim();
+    // Two words at most. "Ridgeline Dialysis Cordele, Georgia" has the shape of a
+    // three-word city and is in fact an employer plus its town; discarding it
+    // lost the employer entirely.
+    if (city.split(/\s+/).length > 2) return false;
+    if (EMPLOYER_TOKENS.test(city) || TITLE_TOKENS.test(city)) return false;
+
+    const tail = m[2].toUpperCase();
+    if (S().STATES.indexOf(tail) !== -1) return true;
+    return S().STATES.some((a) => S().STATE_NAMES[a].toLowerCase() === m[2].toLowerCase());
+  }
+
+  /**
+   * Some layouts run the first duty on to the end of the title line:
+   * "RN Nurse Manager, House Supervisor New Day Behavioral. 40+ hours/week
+   * (salaried) Worked in ...". Keep the title, drop the sentence that follows.
+   */
+  function firstSentence(text) {
+    const m = /^(.{6,120}?[a-z]{2})\.\s+\S/.exec(String(text || ''));
+    return m ? m[1].trim() : String(text || '').trim();
   }
 
   function cleanEntity(text) {
-    return text
+    return String(text || '')
+      // A stray month abbreviation left behind by a malformed date range.
+      .replace(/^\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s*[-–—]\s*/i, '')
       .replace(/\s*[|·•]\s*/g, ', ')
       .replace(/\s*[,;]\s*$/, '')
       .replace(/^\s*[,;\-–]\s*/, '')
@@ -1028,11 +1318,15 @@
    */
   function parse(text) {
     const report = [];
-    const lines = String(text || '')
+    const wideLines = String(text || '')
       .replace(/\r/g, '')
       .split('\n')
       .map(collapseLetterSpacing)
+      // "1995 - 2001Troy State University": some layouts lose the space after
+      // a year, which hides both the date and the school.
+      .map((l) => l.replace(/\b((?:19|20)\d{2})(?=[A-Z][a-z])/g, '$1 '))
       .filter((l) => l.trim() !== '');
+    const lines = wideLines.map(squeeze);
     const blob = lines.join('\n');
 
     if (lines.length < 5) {
@@ -1043,7 +1337,9 @@
       };
     }
 
-    const sections = splitSections(stripRunningHeaders(lines));
+    // Sectioning reads the wide-gap form; everything downstream reads the
+    // squeezed form, which splitSections produces as it goes.
+    const sections = splitSections(stripRunningHeaders(wideLines));
     const profile = {};
 
     profile.identity = parseIdentity(lines, blob, report);
@@ -1073,7 +1369,8 @@
   NA.resumeParse = {
     parse, splitSections, dateRange, toIsoMonth, toIsoDay,
     UNIT_LEXICON, CERT_PATTERNS, DEGREE_PATTERNS, PROCEDURE_LEXICON,
-    scoreEmployer, scoreTitle, looksLikeName, stripTrailingLocation, isLocationOnly, isProse,
-    collapseLetterSpacing, splitRuns, despace, headerName
+    scoreEmployer, scoreTitle, looksLikeName, stripTrailingLocation, stripScheduleNoise, locationSuffix,
+    isLocationOnly, isProse, firstSentence,
+    collapseLetterSpacing, squeeze, splitRuns, despace, headerName, inlineHeader
   };
 })(typeof self !== 'undefined' ? self : this);

@@ -73,10 +73,14 @@ codes, license numbers, bed counts and nurse-to-patient ratios have fixed shapes
 matching problem, not a comprehension problem.
 
 `src/lib/resumeParse.js` handles it: section detection, then per-domain extractors for
-identity, licensure, certifications, education, employment and skills. The genuinely ambiguous
+identity, licensure, certifications, education, employment and skills. Section headers are
+matched with whitespace stripped, so letter-spaced small caps resolve, and again as a line
+prefix, because older Word layouts put the label in a left margin where it extracts as
+"Experience  Jan 2026 - present  ...". The genuinely ambiguous
 part is the employment block, deciding which line is the employer and which is the job title.
-That uses scored keyword lists, and when the two scores are close the parser says so in its
-report rather than picking silently. It never invents a license number, an expiration date or
+Layouts disagree about the order: some put the employer on the date line and the title beneath,
+others the reverse, so position is only a tiebreaker and scored keyword lists decide. When the
+two scores are close the parser says so in its report rather than picking silently. It never invents a license number, an expiration date or
 an NPI that is not written in the document, and an NPI that fails its check digit is rejected
 with a reason.
 
