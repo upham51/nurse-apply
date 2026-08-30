@@ -276,10 +276,18 @@
     if (observer) observer.disconnect();
     observer = new MutationObserver(() => {
       clearTimeout(rescanTimer);
-      rescanTimer = setTimeout(() => {
+      rescanTimer = setTimeout(async () => {
         const fields = NA.mapper.scan(adapter, document);
         const fp = NA.dom.fingerprintForm(fields);
-        if (fp === lastFingerprint) return;
+
+        // The form may only now have rendered, which is when this frame gets
+        // its chance to own the pill.
+        const adopted = await ensureHud();
+
+        if (fp === lastFingerprint) {
+          if (adopted) refreshCounts();
+          return;
+        }
         lastFingerprint = fp;
         trackedThisStep = false;
         aggregate = { filled: 0, total: 0, skipped: [], suggested: [] };
@@ -345,6 +353,40 @@
 
   /* --------------------------------------------------------------- boot */
 
+  /**
+   * Decides whether this frame draws the pill, and draws it.
+   *
+   * Called on load AND on every DOM change, which is the whole point. Workday,
+   * iCIMS and Taleo are single-page apps: at load there is no form yet, so a
+   * decision made once at boot is always "no". The content script would go on
+   * scanning the form as it appeared, marking fields, and never show anything,
+   * which looks exactly like the extension being broken.
+   */
+  async function ensureHud() {
+    if (ownsHud) return true;
+
+    const fields = NA.mapper.scan(adapter, document);
+    if (!fields.length) return false;
+
+    if (!isTop) {
+      // Only adopt the pill if nothing above has one, and only if this frame
+      // is big enough to be the application rather than a tracking pixel.
+      const big = window.innerHeight > 260 && window.innerWidth > 320;
+      if (!big) return false;
+      if (await topFrameHasHud()) return false;
+    }
+
+    ownsHud = true;
+    pageContext();
+    NA.hud.on({
+      onFill: runFill,
+      onInserted: () => { aggregate.filled += 1; NA.hud.setState({ filled: aggregate.filled }); }
+    });
+    NA.hud.build();
+    refreshCounts();
+    return true;
+  }
+
   async function boot() {
     chooseAdapter();
     const loaded = await loadState();
@@ -353,27 +395,9 @@
     const fields = NA.mapper.scan(adapter, document);
     lastFingerprint = NA.dom.fingerprintForm(fields);
 
-    const hasForm = fields.length > 0 || !!document.querySelector('form');
-    if (isTop) {
-      ownsHud = hasForm;
-    } else if (hasForm && fields.length > 0) {
-      // Only adopt the pill if nothing above us has one, and only if this frame
-      // is big enough to be the application rather than a tracking pixel.
-      const big = window.innerHeight > 260 && window.innerWidth > 320;
-      ownsHud = big && !(await topFrameHasHud());
-    }
-
-    if (ownsHud) {
-      pageContext();
-      NA.hud.on({
-        onFill: runFill,
-        onInserted: () => { aggregate.filled += 1; NA.hud.setState({ filled: aggregate.filled }); }
-      });
-      NA.hud.build();
-      refreshCounts();
-    }
-
+    await ensureHud();
     watchForStepChanges();
+
     const autoOnLoad = settings.autopilot ? settings.autoAdvance !== false : settings.autoFillOnLoad;
     if (autoOnLoad && fields.length) setTimeout(runFill, 900);
   }

@@ -35,7 +35,8 @@ const PAGES = {
   'https://acme.myworkdayjobs.com/en-US/careers/job/apply': 'portal-workday.html',
   'https://careers.riverbendhealth.org/apply': 'portal-employer-shell.html',
   'https://riverbend.icims.com/jobs/apply': 'portal-icims.html',
-  'https://cascade.wd5.myworkdaysite.com/en-US/recruiting/apply': 'portal-workday-real.html'
+  'https://cascade.wd5.myworkdaysite.com/en-US/recruiting/apply': 'portal-workday-real.html',
+  'https://spa.myworkdayjobs.com/en-US/careers/apply': 'portal-spa.html'
 };
 
 const EXEC = [
@@ -136,6 +137,49 @@ console.log('\nA Workday application, the domain the manifest matches directly:'
       ? ok('the skipped drawer offers the questions it refused to answer')
       : bad('the skipped count is zero or missing: ' + JSON.stringify(after));
   }
+  await page.close();
+}
+
+/* ----------------------- a single-page app that renders the form after load - */
+console.log('\nA form that only appears two seconds after the page loads:');
+{
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('https://spa.myworkdayjobs.com/en-US/careers/apply');
+
+  // At load there is no form at all, so the pill must not exist yet.
+  await page.waitForTimeout(700);
+  const early = await hudText(page);
+  failures += early === null
+    ? ok('no pill while the page is still empty, which is correct')
+    : bad('a pill appeared before there was a form: ' + JSON.stringify(early));
+
+  // Once the app renders, the pill has to turn up without any interaction.
+  let pill = null;
+  for (let i = 0; i < 30; i++) {
+    await page.waitForTimeout(500);
+    pill = await hudText(page);
+    if (pill) break;
+  }
+  failures += pill
+    ? ok('the pill appears once the form renders: ' + JSON.stringify(pill))
+    : bad('NO pill after the form rendered. This is the bug that made a real Workday application look dead.');
+
+  if (pill) {
+    await clickFill(page);
+    await page.waitForTimeout(2500);
+    const v = await page.evaluate(() => ({
+      first: document.getElementById('fn').value,
+      email: document.getElementById('em').value,
+      phone: document.getElementById('ph').value,
+      hosts: document.querySelectorAll('#nurseapply-hud-host').length
+    }));
+    failures += v.first === 'Jordan' ? ok('and filling works on it') : bad('first name is ' + JSON.stringify(v.first));
+    failures += v.email === 'jordan.reyes@example.com' ? ok('email filled') : bad('email is ' + JSON.stringify(v.email));
+    failures += v.hosts === 1 ? ok('exactly one pill, not one per DOM change') : bad(v.hosts + ' pills on the page');
+  }
+  failures += errors.length === 0 ? ok('no page errors') : bad('page errors: ' + errors.join('; '));
   await page.close();
 }
 

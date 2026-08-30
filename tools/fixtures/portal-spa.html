@@ -1,0 +1,29 @@
+<!--
+  A single-page application that renders its form AFTER load, the way Workday,
+  iCIMS and Taleo actually behave. Every other fixture ships the form in the
+  initial HTML, which is why a bug that made the pill never appear on a real
+  Workday application survived 331 assertions.
+-->
+<!doctype html><html><head><meta charset="utf-8"><title>Cascade Careers</title></head>
+<body>
+<div id="app"><p>Loading your application…</p></div>
+<script>
+// Nothing exists for the first two seconds. This is the whole point.
+setTimeout(() => {
+  document.getElementById('app').innerHTML = `
+    <h2 data-automation-id="jobTitleHeading">RN, Medical ICU</h2>
+    <ol data-automation-id="progressBar"><li data-automation-id="progressBarActiveStep">My Information</li></ol>
+    <div data-automation-id="formField-legalName--firstName">
+      <label for="fn">First Name</label><input id="fn" name="legalName--firstName"></div>
+    <div data-automation-id="formField-legalName--lastName">
+      <label for="ln">Last Name</label><input id="ln" name="legalName--lastName"></div>
+    <div data-automation-id="formField-email">
+      <label for="em">Email Address</label><input id="em" name="email"></div>
+    <div data-automation-id="formField-city">
+      <label for="ct">City</label><input id="ct" name="city"></div>
+    <div data-automation-id="formField-phoneNumber">
+      <label for="ph">Phone Number</label><input id="ph" name="phoneNumber"></div>
+    <button type="button" id="next">Save and Continue</button>`;
+}, 2000);
+</script>
+</body></html>
