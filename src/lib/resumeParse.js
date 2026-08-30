@@ -868,7 +868,7 @@
 
   /* ---------------------------------------------------------- experience */
 
-  function parseExperience(sections, report) {
+  function parseExperience(sections, report, sources) {
     const lines = sections.experience || [];
     if (!lines.length) {
       report.push({ level: 'warn', msg: 'No work history section recognised. Add your roles by hand.' });
@@ -899,14 +899,14 @@
       b.preceding = flat.slice(Math.max(0, idx - 2), idx).filter((l) => !isBullet(l));
     });
 
-    const out = blocks.map((b) => buildRole(b, report)).filter(Boolean);
+    const out = blocks.map((b) => buildRole(b, report, sources)).filter(Boolean);
     if (!out.length) {
       report.push({ level: 'warn', msg: 'Found a work history section but no date ranges in it, so no roles were built.' });
     }
     return out;
   }
 
-  function buildRole(block, report) {
+  function buildRole(block, report, sources) {
     const role = S().blankExperience();
     const range = dateRange(block.dateLine);
     if (!range) return null;
@@ -1067,8 +1067,22 @@
     if (emrLine) role.emrNote = emrLine.replace(/^EMR\s*:\s*/i, '').trim();
 
     if (!role.employer) report.push({ level: 'warn', msg: `A role starting ${role.startDate} has no employer. Fill it in.` });
+
+    // Everything the UI needs to show its work and to offer a correction that
+    // applies to the whole document rather than one role at a time.
+    if (sources) {
+      sources.push({
+        lines: [block.dateLine].concat(block.lines).map((l) => String(l).trim()).filter(Boolean),
+        candidates: scored.map((c) => ({ text: c.text, origin: c.origin,
+                                         employer: round2(c.employer), title: round2(c.title) })),
+        employerOrigin: employerPick ? employerPick.origin : '',
+        titleOrigin: titlePick ? titlePick.origin : ''
+      });
+    }
     return role;
   }
+
+  function round2(n) { return Math.round(Number(n) * 100) / 100; }
 
   function romanize(v) {
     const map = { '1': 'I', '2': 'II', '3': 'III', '4': 'IV' };
@@ -1203,6 +1217,7 @@
         .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
         .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
         .replace(/\s*\/\s*/g, ' / ')
+        .replace(/([a-z])&([A-Z])/g, '$1 & $2')
         .replace(/,(?=\S)/g, ', ')
         .replace(/\s{2,}/g, ' ');
     }).join('');
@@ -1347,7 +1362,8 @@
     profile.licenses = parseLicenses(sections, blob, report);
     profile.certifications = parseCertifications(sections, lines, report);
     profile.education = parseEducation(sections, report);
-    profile.experience = parseExperience(sections, report);
+    const experienceSources = [];
+    profile.experience = parseExperience(sections, report, experienceSources);
     profile.clinicalSkills = parseSkills(sections, blob);
     const compliance = parseCompliance(blob);
     if (Object.keys(compliance).length) profile.compliance = compliance;
@@ -1363,7 +1379,7 @@
       procedures: profile.clinicalSkills.procedures.length
     };
 
-    return { profile, report, stats };
+    return { profile, report, stats, sources: experienceSources, lines };
   }
 
   NA.resumeParse = {

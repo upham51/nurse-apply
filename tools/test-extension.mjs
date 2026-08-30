@@ -131,10 +131,12 @@ const importPath = await page.evaluate(async (bytes) => {
     await new Promise((r) => setTimeout(r, 200));
     const note = document.querySelector('.modal p.note');
     const msg = note ? note.textContent : '';
-    if (/Could not import/i.test(msg)) return { ok: false, error: msg };
-    if (/^Found /.test(msg) || /recognised no profile fields/.test(msg)) {
-      const stored = await window.NA.storage.getProfile();
-      return { ok: true, message: msg };
+    if (/Could not read that file/i.test(msg)) return { ok: false, error: msg };
+    const review = document.getElementById('review');
+    if (review && !review.classList.contains('hidden')) {
+      const roles = document.querySelectorAll('#review-roles .entry').length;
+      const summary = (document.getElementById('review-summary') || {}).textContent || '';
+      return { ok: true, roles, summary: summary.trim() };
     }
   }
   const note = document.querySelector('.modal p.note');
@@ -142,17 +144,78 @@ const importPath = await page.evaluate(async (bytes) => {
 }, pdfBytes);
 
 failures += importPath.ok
-  ? ok('drop-to-parse succeeded: ' + importPath.message)
+  ? ok(`drop-to-parse opened the review panel with ${importPath.roles} roles`)
   : bad('import path failed: ' + importPath.error);
 
 if (importPath.ok) {
-  const kept = await page.evaluate(() => {
-    const n = document.querySelector('#sec-documents input');
-    return { fileName: n ? n.value : '' };
+  console.log('\nThe review panel, which is the only thing standing between a misread and a submitted application:');
+  failures += /Nothing is saved until you press Use this/.test(importPath.summary)
+    ? ok('says nothing is saved yet')
+    : bad('the summary does not say the import is unsaved: ' + JSON.stringify(importPath.summary));
+
+  // Nothing may have reached the profile yet.
+  const beforeApply = await page.evaluate(async () => {
+    const p = await window.NA.storage.getProfile();
+    return p.experience.filter((x) => x.employer).length;
   });
-  failures += kept.fileName === 'a-classic.pdf'
-    ? ok('resume file name landed in the profile form')
-    : bad('resume file name is ' + JSON.stringify(kept.fileName));
+  failures += beforeApply === 0
+    ? ok('no job has been written to storage before the user approves')
+    : bad(beforeApply + ' jobs were saved without approval');
+
+  // The whole-document swap: one click, every role.
+  const swap = await page.evaluate(async () => {
+    const before = window.NA.review.state.profile.experience.map((r) => [r.employer, r.title]);
+    const btns = Array.from(document.querySelectorAll('#review-swap button'));
+    const target = btns.find((b) => /swap them/i.test(b.textContent));
+    if (!target) return { ok: false, error: 'no swap button' };
+    target.click();
+    await new Promise((r) => setTimeout(r, 100));
+    const after = window.NA.review.state.profile.experience.map((r) => [r.employer, r.title]);
+    return {
+      ok: true,
+      count: before.length,
+      allSwapped: before.every((b, i) => after[i][0] === b[1] && after[i][1] === b[0])
+    };
+  });
+  failures += swap.ok && swap.allSwapped
+    ? ok(`one click swapped employer and title on all ${swap.count} roles`)
+    : bad('the document-wide swap did not work: ' + JSON.stringify(swap));
+
+  // Put it back, then check the source lines are shown and clickable.
+  const reassign = await page.evaluate(async () => {
+    window.NA.review.swapAll();
+    await new Promise((r) => setTimeout(r, 80));
+    const toggle = Array.from(document.querySelectorAll('#review-roles button'))
+      .find((b) => /Where did this come from/i.test(b.textContent));
+    if (!toggle) return { ok: false, error: 'no source-lines toggle' };
+    toggle.click();
+    await new Promise((r) => setTimeout(r, 80));
+    const lines = document.querySelectorAll('#review-roles .srcline');
+    if (!lines.length) return { ok: false, error: 'no source lines shown' };
+    const text = lines[0].querySelector('.txt').textContent;
+    const employerBtn = Array.from(lines[0].querySelectorAll('button'))
+      .find((b) => b.textContent === 'Employer');
+    employerBtn.click();
+    await new Promise((r) => setTimeout(r, 80));
+    return { ok: true, lineCount: lines.length,
+             assigned: window.NA.review.state.profile.experience[0].employer === text };
+  });
+  failures += reassign.ok && reassign.assigned
+    ? ok(`the resume lines are shown (${reassign.lineCount}) and clicking one assigns it`)
+    : bad('source-line reassignment failed: ' + JSON.stringify(reassign));
+
+  // Approve, and only now should anything reach storage.
+  const applied = await page.evaluate(async () => {
+    document.getElementById('review-apply').click();
+    await new Promise((r) => setTimeout(r, 200));
+    const hidden = document.getElementById('review').classList.contains('hidden');
+    const fileField = document.querySelector('#sec-documents input');
+    return { hidden, fileName: fileField ? fileField.value : '' };
+  });
+  failures += applied.hidden ? ok('the review panel closes on approval') : bad('review panel stayed open');
+  failures += applied.fileName === 'a-classic.pdf'
+    ? ok('the resume file name landed in the profile form')
+    : bad('resume file name is ' + JSON.stringify(applied.fileName));
 }
 
 console.log('\nStorage round trip through the real chrome.storage:');

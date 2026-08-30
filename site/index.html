@@ -138,7 +138,7 @@ footer p{color:var(--faint);font-size:13.5px}
   <div class="mark"><img src="icons/icon128.png" alt=""></div>
   <h1>Apply to nursing jobs<br>without retyping <em>your whole career</em>.</h1>
   <p class="lede">NurseApply is a Chrome extension that fills hospital application portals from a
-  profile it builds from your resume, on your machine, with no model and no account: licenses,
+  profile it builds out of your resume, on your machine, with no account and no API key: licenses,
   certifications, trauma level, bed count, typical ratio, EMR systems, immunization dates.
   <strong>It fills. You review and submit.</strong></p>
   <div class="cta">
@@ -171,23 +171,47 @@ footer p{color:var(--faint);font-size:13.5px}
 </section>
 
 <section>
-  <h2>Resume import, with no model involved</h2>
-  <p class="sub">No API key, no upload, no network.</p>
-  <p>Drop in a PDF, DOCX or TXT and it fills most of the profile on your own machine. This works
-  without a model because most of what a nursing application asks for is drawn from closed
-  vocabularies rather than free prose. Certifications are an eight-item list. EMR systems are an
-  eight-item list. Degrees, units, license types, facility types and trauma levels are all
-  enumerated. Dates, phone numbers, ZIP codes, license numbers, bed counts and nurse-to-patient
-  ratios have fixed shapes. That is a matching problem, not a comprehension problem.</p>
-  <p>The one genuinely ambiguous part is the employment block: which line is the employer and
-  which is the job title. That is scored, and when the two are close the parser says so in its
-  report instead of picking silently. It never invents a license number, an expiration date or an
-  NPI that is not written in the document, and an NPI that fails its check digit is rejected with
-  the reason shown. When it finishes it tells you what it could not work out, so a gap is visible
-  rather than a silent blank.</p>
-  <p>A model is available as an optional second pass that writes only into fields the parser left
-  blank. It is never on the critical path. <strong>A scanned PDF with no text layer will come out
-  empty</strong>, because there is no OCR here.</p>
+  <h2>Getting your resume in</h2>
+  <p class="sub">Three routes, because one is not enough.</p>
+  <p>Reading a free-form document with rules is wrong often enough, and plausibly enough, that it
+  cannot be the only path. A blank field is harmless. An employer that reads perfectly well and is
+  actually a line from your duties is not. So there are three independent ways in, and none of them
+  writes anything to your profile without showing you first.</p>
+  <ol class="tight">
+    <li><strong>The parser.</strong> Instant, on your machine, no key, no account. It works because
+    most of what a nursing application asks for comes from closed vocabularies rather than free
+    prose: certifications are an eight-item list, EMR systems are an eight-item list, and degrees,
+    units, license types and trauma levels are all enumerated. Dates, phone numbers, license
+    numbers, bed counts and ratios have fixed shapes. That is matching, not comprehension.</li>
+    <li><strong>Your browser's own AI, if it has it.</strong> Recent Chrome ships a small model that
+    runs on the device. Where it exists the extension quietly uses it to settle which line is the
+    employer and which is the job title. Nothing is sent anywhere, there is no key, and there is
+    nothing to turn on.</li>
+    <li><strong>A handoff to the chatbot you already use.</strong> One button copies your resume and
+    a ready-made question, and opens ChatGPT, Claude or Gemini. Paste it in, press enter, then paste
+    the answer back. The free version of any of them is enough. It reads whatever you paste, even
+    the whole conversation, and it works with no file at all, so a scanned resume with no text in it
+    is not a dead end.</li>
+  </ol>
+  <p>Nothing is invented on any of these routes. A license number, an expiration date, an NPI or a
+  graduation date that is not written in your resume stays empty, and an NPI that fails its check
+  digit is rejected with the reason shown.</p>
+</section>
+
+<section>
+  <h2>Then you check it</h2>
+  <p class="sub">The step that makes the rest safe.</p>
+  <p>Every import opens a review panel rather than filling your profile. It shows what it read, and
+  makes the two corrections that actually happen take one click each.</p>
+  <ol class="tight">
+    <li><strong>One question fixes the whole document.</strong> It shows your first job's employer
+    and title and asks whether they are the right way round. A resume keeps one layout all the way
+    through, so if they are swapped they are swapped everywhere, and a single button flips all of
+    them at once.</li>
+    <li><strong>Click a line to use it.</strong> Each job can show the exact lines from your resume
+    that it was built from, with an Employer and a Title button beside each. When something is
+    wrong, the right words are usually already on the screen.</li>
+  </ol>
 </section>
 
 <section>
@@ -250,7 +274,7 @@ cd nurse-apply &amp;&amp; npm install
 
 npm run check      # syntax, manifest integrity, safety invariants
 npm test           # resume parser, fill harness, options page, real PDF
-npm run package    # dist/nurseapply-1.3.0.zip</code></pre>
+npm run package    # dist/nurseapply-1.4.0.zip</code></pre>
   <p>The test suite includes a negative control: a naive <code>element.value =</code> assignment on an
   identically guarded input, which the simulated React component must discard. If that control ever passes,
   the harness is not reproducing the failure mode and the positive results mean nothing. The PDF test

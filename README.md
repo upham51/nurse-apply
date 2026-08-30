@@ -63,6 +63,41 @@ re-render discards it. Every write in `domUtils.js` calls the native setter take
 against a simulated controlled React input, and includes a negative control: a naive
 assignment on an identically guarded field, which the simulation must discard.
 
+### Three ways in, because one is not enough
+
+Rule-based extraction of a free-form document is wrong often enough, and
+plausibly enough, that it cannot be the only path. A missing field is harmless;
+an employer that reads fine and is actually a duty line is not. So import is
+built as three independent routes that back each other up, and none of them
+writes to the profile without being shown to you first.
+
+1. **The parser.** Deterministic, local, instant, no key. Described below.
+2. **Chrome's on-device model**, where it exists. Chrome 138 and later expose
+   `LanguageModel` to extensions: Gemini Nano, running on the machine, no key,
+   no account, nothing leaving the device. Used silently to settle which line is
+   the employer and which is the title, and never mentioned in the interface,
+   because it needs about 22 GB of free disk and a decent GPU or 16 GB of RAM
+   and a nurse on an old laptop should not be shown a feature she cannot have.
+3. **A handoff to whatever assistant you already use.** One button copies your
+   resume text and a finished question to the clipboard and opens ChatGPT,
+   Claude or Gemini. You paste, press enter, copy the answer back into a box.
+   The reader accepts whatever comes back: fenced, wrapped in an apology, with
+   different key names, or the entire chat transcript because you pressed
+   select-all. Free tiers are enough and no API key is involved. It works with
+   no file at all, so a scanned PDF with no text layer is not a dead end.
+
+### The review step
+
+Every import lands in a review panel, not in the profile. It shows what was
+read, and makes the two corrections that actually happen cheap:
+
+1. **One question fixes the whole document.** Resumes keep one layout
+   throughout, so when employer and title are the wrong way round they are wrong
+   for every job. A single button swaps all of them.
+2. **Click a line to assign it.** Each job can show the resume lines it was
+   built from, with an Employer and a Title button beside each. The right answer
+   is almost always already on screen, so reassigning beats retyping.
+
 ### Resume import without a model
 
 Resume parsing runs entirely on your machine and needs no API key. It works because most of

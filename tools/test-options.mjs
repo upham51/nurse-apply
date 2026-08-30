@@ -97,9 +97,12 @@ let bodyText = await page.$eval('.modal', (n) => n.textContent);
 failures += heading === 'Import resume'
   ? pass('opens the drop zone')
   : fail(`expected the import modal, got ${JSON.stringify(heading)}`);
-failures += /No API key, no upload, no network/i.test(bodyText)
-  ? pass('states that parsing is local')
-  : fail('import modal does not say parsing is local');
+failures += /No API key, no upload, no account/i.test(bodyText)
+  ? pass('states that reading happens on this computer with no key or account')
+  : fail('import modal does not say reading is local');
+failures += /check every job before anything is saved/i.test(bodyText)
+  ? pass('promises a review before anything is saved')
+  : fail('import modal does not promise a review step');
 await page.click('.modal .row-actions button:last-child');
 
 console.log('\nResume import with no key at all:');
@@ -121,11 +124,65 @@ failures += heading === 'Import resume'
   : fail(`expected the import modal, got ${JSON.stringify(heading)}`);
 await page.click('.modal .row-actions button:last-child');
 
-console.log('\nLocal parser is wired into the page:');
-const parserWired = await page.evaluate(() => !!(window.NA && window.NA.resumeParse && window.NA.pdftext));
-failures += parserWired
-  ? pass('resumeParse and pdftext are loaded on the options page')
-  : fail('local parsing modules are not loaded');
+console.log('\nEvery import path is wired into the page:');
+const wired = await page.evaluate(() => ({
+  resumeParse: !!(window.NA && window.NA.resumeParse),
+  pdftext: !!(window.NA && window.NA.pdftext),
+  localModel: !!(window.NA && window.NA.localModel),
+  handoff: !!(window.NA && window.NA.handoff),
+  review: !!(window.NA && window.NA.review)
+}));
+Object.entries(wired).forEach(([k, v]) => {
+  failures += v ? pass('NA.' + k + ' loaded') : fail('NA.' + k + ' missing');
+});
+
+console.log('\nThe chatbot handoff, which needs no key, no local model and no parsed file:');
+await page.click('#btn-handoff');
+await page.waitForTimeout(300);
+const handoffHeading = await page.$eval('.modal h2', (n) => n.textContent).catch(() => '');
+const handoffBody = await page.$eval('.modal', (n) => n.textContent).catch(() => '');
+failures += /chatbot/i.test(handoffHeading)
+  ? pass('opens without an API key')
+  : fail('handoff modal did not open, heading was ' + JSON.stringify(handoffHeading));
+failures += /no API key is involved/i.test(handoffBody)
+  ? pass('states that no API key is involved')
+  : fail('handoff modal does not say a key is unnecessary');
+failures += (await page.$$('.modal .steps li')).length === 3
+  ? pass('gives three numbered steps')
+  : fail('the steps list is not three items');
+failures += (await page.$$('.modal textarea')).length >= 2
+  ? pass('offers a box to paste resume text into, so it works with a scanned PDF too')
+  : fail('no resume text box in the handoff modal');
+
+// Feed it a reply the way a user would, and check it reaches the review panel.
+const handoffRound = await page.evaluate(async () => {
+  const boxes = Array.from(document.querySelectorAll('.modal textarea'))
+    .filter((t) => !t.classList.contains('hidden'));
+  const reply = boxes[boxes.length - 1];
+  reply.value = 'Sure, here you go:\n\n```json\n' + JSON.stringify({
+    identity: { firstName: 'Ada', lastName: 'Vance' },
+    experience: [{ company: 'Mercy General', position: 'Staff Nurse',
+                   from: '01/2020', to: 'Present', setting: 'Hospital' }]
+  }) + '\n```\nHope that helps!';
+  reply.dispatchEvent(new Event('input', { bubbles: true }));
+  const use = Array.from(document.querySelectorAll('.modal button'))
+    .find((b) => /Use the answer/i.test(b.textContent));
+  use.click();
+  await new Promise((r) => setTimeout(r, 250));
+  const review = document.getElementById('review');
+  return {
+    opened: review && !review.classList.contains('hidden'),
+    employer: (window.NA.review.state || {}).profile
+      ? window.NA.review.state.profile.experience[0].employer : ''
+  };
+});
+failures += handoffRound.opened && handoffRound.employer === 'Mercy General'
+  ? pass('a fenced reply with prose either side round-trips into the review panel')
+  : fail('handoff round trip failed: ' + JSON.stringify(handoffRound));
+await page.evaluate(() => {
+  const d = document.getElementById('review-discard');
+  if (d) d.click();
+});
 const localResult = await page.evaluate(() => {
   const r = window.NA.resumeParse.parse(
     'Pat Nguyen RN\npat@example.com\n503-555-0100\nPortland, OR 97209\n\n' +

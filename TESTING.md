@@ -38,6 +38,12 @@ pdf.js in a real browser, and parses the result. The page is under a request int
 fails the test if anything leaves the local origin, which is what makes "no network" a checked
 claim rather than an assertion.
 
+`npm run test:handoff` feeds the chatbot reader the shapes a real assistant produces: fenced
+JSON, JSON buried in prose, an entire select-all transcript, a decoy empty object above the
+answer, different key names, spelled-out enum values, US date formats, and a flat refusal. All of
+those must import or explain themselves rather than failing silently, because the person on the
+other end has already done the copying twice and will not do it a third time.
+
 `npm run test:options` loads the options page against an in-memory `chrome.storage.local` shim and
 checks the behaviours that only appear in a browser: that the API key reaches storage the moment it
 is typed rather than waiting for Save profile, that clearing the field clears the stored key, that
@@ -105,6 +111,14 @@ To watch the plan without touching the page:
 const fields = NA.mapper.scan(NA.adapterRegistry.pick(location, document), document);
 NA.mapper.plan(fields, NA.currentProfile, { fillDemographics: true }, NA.adapterRegistry.pick(location, document));
 ```
+
+### Checking the review step
+
+`npm run test:ext` drives the real thing: it drops a PDF on the installed extension, waits for the
+review panel, asserts that nothing has reached storage yet, clicks the whole-document swap and
+checks every role flipped, expands a job's source lines and clicks one to reassign it, then
+approves and checks the profile was written. That sequence is the product's actual safety
+property, so it is tested in a real browser rather than reasoned about.
 
 ### When the extension misbehaves after an update
 

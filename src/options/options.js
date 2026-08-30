@@ -440,25 +440,25 @@
   }
 
   const MAX_STORED_RESUME_BYTES = 4 * 1024 * 1024;
+  let lastResumeText = '';
 
   /**
-   * Resume import runs entirely on this machine by default. pdf.js pulls the
-   * text out of a PDF, a small unzip reads DOCX, and resumeParse.js turns that
-   * text into profile fields using the closed vocabularies nursing gives us:
-   * an eight-item certification list, an eight-item EMR list, enumerated
-   * degrees, units, license types and trauma levels, plus the fixed shapes of
-   * dates, phone numbers, ZIPs and nurse-to-patient ratios.
+   * Resume import runs on this machine. pdf.js reads the PDF, a small unzip
+   * reads DOCX, and resumeParse.js turns the text into fields using the closed
+   * vocabularies nursing gives us.
    *
-   * A model is only ever a second pass, offered afterwards, for the parts that
-   * are genuinely ambiguous rather than merely unstructured.
+   * The result is never applied silently. Rule-based extraction of a free-form
+   * document is wrong often enough, and plausibly enough, that the only honest
+   * design is to show the work and make corrections cheap. Three things back
+   * each other up: the parser, Chrome's on-device model where it exists, and a
+   * copy-and-paste handoff to whichever free assistant the user already has.
    */
   function openResumeImport() {
     const zone = el('div', { class: 'dropzone', text: 'Drop a PDF, DOCX or TXT resume here, or click to choose' });
     const input = el('input', { type: 'file', accept: '.pdf,.docx,.txt,.md', class: 'hidden' });
     const statusNode = el('p', { class: 'note', text: '' });
-    const resultNode = el('div', {});
 
-    const pick = (file) => handleResume(file, { statusNode, resultNode, ui });
+    const pick = (file) => handleResume(file, { statusNode, ui });
 
     zone.addEventListener('click', () => input.click());
     zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('over'); });
@@ -471,9 +471,9 @@
 
     const ui = modal(
       'Import resume',
-      'Read and parsed on this computer. No API key, no upload, no network. ' +
-      'Nothing is stored until you press Save profile, so read every section first.',
-      [zone, input, statusNode, resultNode],
+      'Read on this computer. No API key, no upload, no account. You will get a chance to ' +
+      'check every job before anything is saved.',
+      [zone, input, statusNode],
       [el('button', { class: 'ghost', text: 'Close', onclick: () => ui.close() })]
     );
   }
@@ -482,7 +482,7 @@
     const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
     const isDocx = /\.docx$/i.test(file.name);
     if (isPdf) {
-      statusNode.textContent = 'Extracting text from the PDF on this machine…';
+      statusNode.textContent = 'Reading the PDF on this machine…';
       return { text: await NA.pdftext.extractText(buf), isPdf: true };
     }
     if (isDocx) return { text: await NA.docx.extractText(buf), isPdf: false };
@@ -490,19 +490,15 @@
   }
 
   async function handleResume(file, ctx) {
-    const { statusNode, resultNode, ui } = ctx;
-    resultNode.textContent = '';
+    const { statusNode, ui } = ctx;
     statusNode.textContent = 'Reading ' + file.name + '…';
     try {
       const buf = await file.arrayBuffer();
       const size = buf.byteLength;
       const isPdfFile = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
 
-      // Read the bytes we intend to keep before any parser touches the buffer.
-      // Keeping them is what lets NurseApply attach the resume to a portal file
-      // input later. chrome.storage.local has a quota, and a failed write would
-      // take the rest of the profile with it, so an oversized file is parsed
-      // but not stored.
+      // Read the bytes we intend to keep before any parser touches the buffer:
+      // pdf.js transfers the ArrayBuffer to its worker, which detaches it.
       if (isPdfFile && size <= MAX_STORED_RESUME_BYTES) {
         profile.documents.resumeBase64 = bytesToBase64(new Uint8Array(buf));
         profile.documents.resumeMimeType = 'application/pdf';
@@ -511,93 +507,205 @@
         profile.documents.resumeMimeType = '';
       }
 
-      const { text, isPdf } = await extractResumeText(file, buf, statusNode);
-
+      const { text } = await extractResumeText(file, buf, statusNode);
+      lastResumeText = text;
       profile.documents.resumeFileName = file.name;
       if (text) profile.documents.resumeText = text;
-
-      statusNode.textContent = 'Parsing…';
-      const parsed = NA.resumeParse.parse(text);
-      applyParsed(parsed.profile);
-      render();
       markDirty();
 
-      statusNode.textContent = summarise(parsed.stats, file.name, isPdf && size > MAX_STORED_RESUME_BYTES);
-      resultNode.appendChild(reportList(parsed.report));
-      resultNode.appendChild(refineRow(text, statusNode, resultNode));
+      statusNode.textContent = 'Reading the layout…';
+      const parsed = NA.resumeParse.parse(text);
+      parsed.text = text;
+
+      const meta = { source: file.name, issues: [] };
+      await maybeRefineLocally(parsed, statusNode, meta);
+
+      ui.close();
+      openReview(parsed, meta);
     } catch (e) {
-      statusNode.textContent = 'Could not import: ' + e.message;
+      statusNode.textContent = 'Could not read that file: ' + e.message;
     }
-  }
-
-  function summarise(stats, fileName, tooBigToStore) {
-    if (!stats || !stats.lines) return 'Nothing readable came out of ' + fileName + '.';
-    const bits = [];
-    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
-    if (stats.experience) bits.push(plural(stats.experience, 'role'));
-    if (stats.licenses) bits.push(plural(stats.licenses, 'license'));
-    if (stats.certifications) bits.push(plural(stats.certifications, 'certification'));
-    if (stats.education) bits.push(plural(stats.education, 'school'));
-    if (stats.emrSystems) bits.push(plural(stats.emrSystems, 'EMR system'));
-    if (stats.procedures) bits.push(plural(stats.procedures, 'skill'));
-    const head = bits.length ? 'Found ' + bits.join(', ') + '.' : 'Read the file but recognised no profile fields.';
-    return head + (tooBigToStore
-      ? ' The PDF is over 4 MB so the file itself was not stored, only its text.'
-      : ' Check every section, then press Save profile.');
-  }
-
-  function reportList(report) {
-    const wrap = el('div', {});
-    if (!report || !report.length) return wrap;
-    const ul = el('ul', { class: 'issues' });
-    report.slice(0, 12).forEach((r) => {
-      ul.appendChild(el('li', { class: r.level === 'warn' ? 'err' : '', text: r.msg }));
-    });
-    wrap.appendChild(ul);
-    return wrap;
   }
 
   /**
-   * The optional second pass. Everything above already ran; this only exists
-   * for the parts a rule cannot settle, and it is never on the critical path.
+   * Chrome 138 and later ship a small model that runs on the device. Where it
+   * is present it is strictly better than the heuristics at telling an
+   * employer from a job title, costs nothing, needs no key, and sends nothing
+   * anywhere. Where it is absent nothing is said about it: a nurse on an old
+   * laptop should not be shown a feature she cannot have.
    */
-  function refineRow(text, statusNode, resultNode) {
-    const row = el('div', { class: 'row-actions', style: 'margin-top:12px' });
+  async function maybeRefineLocally(parsed, statusNode, meta) {
+    try {
+      if (!(await NA.localModel.ready())) return;
+      const roles = parsed.profile.experience || [];
+      if (!roles.length) return;
 
-    if (!settings.apiKey) {
-      row.appendChild(el('p', { class: 'note', style: 'margin:0',
-        text: 'Anything the rules could not work out is listed above. Fill those in by hand, or add an Anthropic API key in Settings and a second pass can attempt them.' }));
-      return row;
-    }
-
-    const btn = el('button', {
-      class: 'ghost', text: 'Second pass with the model',
-      onclick: async () => {
-        btn.disabled = true;
-        statusNode.textContent = 'Asking the model to fill the gaps. This takes a few seconds…';
-        const res = await sendMessage({ type: 'llm:parseResume', text });
-        if (!res || !res.ok) {
-          statusNode.textContent = 'Second pass failed: ' + ((res && res.error) || 'no response');
-          btn.disabled = false;
-          return;
+      statusNode.textContent = 'Checking the jobs…';
+      const fixes = await NA.localModel.refineRoles(roles, parsed.sources, {
+        onProgress: (done, total) => {
+          statusNode.textContent = `Checking the jobs… ${done} of ${total}`;
         }
-        applyParsed(res.parsed, { onlyFillBlanks: true });
+      });
+      if (!fixes) return;
+
+      let changed = 0;
+      fixes.forEach((fix, i) => {
+        if (!fix) return;
+        const role = roles[i];
+        const cleanEmployer = fix.employer ? tidy(fix.employer) : '';
+        const cleanTitle = fix.title ? tidy(fix.title) : '';
+        if (cleanEmployer && cleanEmployer !== role.employer) { role.employer = cleanEmployer; changed++; }
+        if (cleanTitle && cleanTitle !== role.title) { role.title = cleanTitle; changed++; }
+      });
+      if (changed) meta.refined = changed;
+    } catch (e) {
+      // Never let an optional accelerator break the import.
+    }
+  }
+
+  /** Source lines carry their location and schedule noise; fields should not. */
+  function tidy(line) {
+    const RP = NA.resumeParse;
+    let out = RP.splitRuns(String(line || '').trim());
+    out = out.split(/\s*[|·•]\s*/)[0].trim();
+    out = RP.stripScheduleNoise(out);
+    const loc = RP.locationSuffix(out);
+    if (loc && loc.head) out = loc.head;
+    return RP.firstSentence(out).replace(/[,\s]+$/, '');
+  }
+
+  function openReview(parsed, meta) {
+    NA.review.open(parsed, meta, {
+      onApply: (reviewed) => {
+        applyParsed(reviewed);
         render();
         markDirty();
-        statusNode.textContent = 'Second pass applied to the blanks only. Existing values were left alone. Check it, then Save profile.';
-        resultNode.textContent = '';
-      }
+        setStatus('Import applied. Read it through, then press Save profile.', 'ok');
+      },
+      onDiscard: () => setStatus('Import discarded. Nothing was changed.')
     });
-    row.appendChild(btn);
-    row.appendChild(el('span', { class: 'note', style: 'margin:0;flex:1',
-      text: 'Optional. Sends the resume text to Anthropic with your key, and only writes into fields the local parser left blank.' }));
-    return row;
   }
 
+  /* ------------------------------------------------- chatbot handoff flow */
+
+  const ASSISTANTS = [
+    { name: 'ChatGPT', url: 'https://chatgpt.com/' },
+    { name: 'Claude', url: 'https://claude.ai/new' },
+    { name: 'Gemini', url: 'https://gemini.google.com/app' }
+  ];
+
   /**
-   * Merges parsed output in without destroying anything the user already typed.
-   * Arrays are replaced only when the model actually found entries.
+   * For when the parser gets a layout wrong and there is no on-device model.
+   * The user already has a free assistant in a browser tab; this hands them a
+   * finished prompt and reads back whatever they paste, however messy.
    */
+  function openHandoff(resumeText) {
+    const text = resumeText || lastResumeText || profile.documents.resumeText || '';
+
+    // The resume text is editable and can start empty. A scanned PDF has no
+    // text layer at all, and someone may simply want to paste what they have
+    // rather than hunt for a file, so this path never depends on the parser
+    // having succeeded, or on a file existing.
+    const resumeBox = el('textarea', {
+      placeholder: 'Your resume text. Import a file above to fill this in, or paste or type it here.'
+    });
+    resumeBox.value = text;
+    resumeBox.style.minHeight = '110px';
+
+    const promptBox = el('textarea', { class: 'hidden' });
+
+    const copyNote = el('span', { class: 'note', style: 'margin:0' });
+    const copy = el('button', {
+      class: 'primary', text: 'Copy the question',
+      onclick: async () => {
+        const body = resumeBox.value.trim();
+        if (!body) {
+          copyNote.textContent = 'Put your resume text in the box first.';
+          resumeBox.focus();
+          return;
+        }
+        const prompt = NA.handoff.buildPrompt(body);
+        promptBox.value = prompt;
+        const ok = await copyToClipboard(prompt, promptBox);
+        copyNote.textContent = ok
+          ? 'Copied. Now open your assistant and paste it.'
+          : 'Select the text below and copy it with Ctrl+C or Cmd+C.';
+        if (!ok) { promptBox.classList.remove('hidden'); promptBox.select(); }
+      }
+    });
+
+    const openers = ASSISTANTS.map((a) => el('button', {
+      class: 'small ghost', text: 'Open ' + a.name,
+      onclick: () => chrome.tabs.create({ url: a.url })
+    }));
+
+    const reply = el('textarea', { placeholder: 'Paste the whole answer here. Extra words around it are fine.' });
+    reply.style.minHeight = '150px';
+
+    const status = el('p', { class: 'note', text: '' });
+
+    const use = el('button', {
+      class: 'primary', text: 'Use the answer',
+      onclick: () => {
+        const result = NA.handoff.read(reply.value);
+        if (!result.profile) {
+          status.textContent = result.issues.map((i) => i.msg).join(' ');
+          return;
+        }
+        ui.close();
+        openReview(
+          { profile: result.profile, sources: [], report: [], text: resumeBox.value,
+            stats: {
+              experience: result.profile.experience.length,
+              licenses: result.profile.licenses.length,
+              certifications: result.profile.certifications.length,
+              education: result.profile.education.length,
+              emrSystems: result.profile.clinicalSkills.emrSystems.length
+            } },
+          { source: 'From your assistant', issues: result.issues }
+        );
+      }
+    });
+
+    const steps = el('ol', { class: 'steps' }, [
+      el('li', {}, [document.createTextNode('Press Copy the question.'),
+        el('span', { class: 'sub', text: 'It puts your resume and the instructions on the clipboard.' })]),
+      el('li', {}, [document.createTextNode('Open ChatGPT, Claude or Gemini and paste it in, then press enter.'),
+        el('span', { class: 'sub', text: 'The free version is fine. You do not need to pay for anything.' })]),
+      el('li', {}, [document.createTextNode('Select the whole answer, copy it, and paste it in the box below.'),
+        el('span', { class: 'sub', text: 'If you copy extra words by accident it still works.' })])
+    ]);
+
+    const ui = modal(
+      'Fix it with a chatbot',
+      'Your resume goes to whichever assistant you choose, the same as if you had pasted it there yourself. ' +
+      'Nothing is sent by this extension, and no API key is involved.',
+      [steps,
+       el('label', { class: 'field' },
+         [el('span', { class: 'lab', text: 'Your resume text' }), resumeBox]),
+       el('div', { class: 'row-actions', style: 'margin-top:12px' },
+          [copy].concat(openers).concat([copyNote])),
+       promptBox,
+       el('label', { class: 'field', style: 'margin-top:16px' },
+         [el('span', { class: 'lab', text: 'The answer' }), reply]),
+       status],
+      [use, el('button', { class: 'ghost', text: 'Close', onclick: () => ui.close() })]
+    );
+  }
+
+  async function copyToClipboard(text, fallbackNode) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      try {
+        fallbackNode.classList.remove('hidden');
+        fallbackNode.select();
+        return document.execCommand('copy');
+      } catch (e2) { return false; }
+    }
+  }
+
   function applyParsed(parsed, opts) {
     if (!parsed || typeof parsed !== 'object') return;
     const onlyBlanks = !!(opts && opts.onlyFillBlanks);
@@ -680,6 +788,14 @@
     $('#btn-save').addEventListener('click', save);
     $('#btn-save-2').addEventListener('click', save);
     $('#btn-import-resume').addEventListener('click', openResumeImport);
+    $('#btn-handoff').addEventListener('click', () => openHandoff());
+    NA.review.wire();
+    const reviewHandoff = $('#review-handoff');
+    if (reviewHandoff) reviewHandoff.addEventListener('click', () => {
+      const st = NA.review.state;
+      NA.review.close();
+      openHandoff(st && st.text);
+    });
     $('#btn-tracker').addEventListener('click', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('src/tracker/tracker.html') });
     });

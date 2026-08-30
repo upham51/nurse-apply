@@ -19,9 +19,25 @@
     <div class="row-actions">
       <button id="btn-tracker" class="ghost">Open tracker</button>
       <button id="btn-import-resume" class="ghost">Import resume</button>
+      <button id="btn-handoff" class="ghost">Fix with a chatbot</button>
       <button id="btn-save" class="primary">Save profile</button>
     </div>
   </header>
+
+  <div id="review" class="panel hidden">
+    <div class="panel-head">Check the import<span class="hint">nothing is saved until you press Use this</span></div>
+    <div class="panel-body">
+      <div id="review-summary"></div>
+      <div id="review-swap"></div>
+      <ul class="issues" id="review-issues"></ul>
+      <div id="review-roles"></div>
+      <div class="row-actions" style="margin-top:16px">
+        <button id="review-apply" class="primary">Use this</button>
+        <button id="review-handoff" class="ghost">Not right? Fix it with a chatbot</button>
+        <button id="review-discard" class="ghost">Discard</button>
+      </div>
+    </div>
+  </div>
 
   <div id="issues-wrap" class="panel hidden">
     <div class="panel-head">Before you apply</div>
@@ -109,9 +125,12 @@
     <summary>Documents <span class="hint">resume file and cover letter template</span><span class="chev">›</span></summary>
     <div class="panel-body">
       <div class="grid" id="sec-documents"></div>
-      <p class="note">Resume import reads PDF, DOCX and TXT on this machine. It pulls out your
-        licenses, certifications, schools, roles, units, ratios, bed counts, trauma levels and EMR
-        systems, and tells you what it could not work out rather than leaving a silent blank.</p>
+      <p class="note">Resume import reads PDF, DOCX and TXT on this machine. Every import is
+        shown to you before anything is saved, with the resume lines each job came from, so a
+        misread employer takes one click to fix rather than retyping.</p>
+      <p class="note">If a resume defeats it, <strong>Fix with a chatbot</strong> hands the text
+        and a ready-made question to ChatGPT, Claude or Gemini. Paste the answer back and it
+        reads it. The free tier of any of them is enough, and no API key is involved.</p>
       <p class="note">Cover letter tokens: <code>{{hospital}}</code>, <code>{{role}}</code>,
         <code>{{unit}}</code>, <code>{{certifications}}</code>, <code>{{emr_experience}}</code>.
         NurseApply drafts it into the drawer. It never inserts it without you clicking.</p>
@@ -155,6 +174,9 @@
 <script src="../lib/docx.js"></script>
 <script src="../lib/pdftext.js"></script>
 <script src="../lib/resumeParse.js"></script>
+<script src="../lib/localModel.js"></script>
+<script src="../lib/handoff.js"></script>
+<script src="review.js"></script>
 <script src="options.js"></script>
 </body>
 </html>

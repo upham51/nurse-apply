@@ -30,23 +30,35 @@ to NurseApply. The popup is how you trigger a fill when the floating pill is hid
 
 Two ways.
 
-**Import a resume.** Click **Import resume** and drop in a PDF, DOCX or TXT. This runs entirely
-on your machine: no API key, no upload, no network. It pulls out your name, contact details,
-licenses with numbers and expiration dates, certifications with issuing bodies, schools and
-degrees, and every role with its unit, bed count, nurse-to-patient ratio, trauma level and
-bullets. When it finishes it tells you what it found and, more usefully, what it could not work
-out, so a gap is visible rather than silently blank.
+**Import a resume.** Click **Import resume** and drop in a PDF, DOCX or TXT. This runs on your
+machine: no API key, no upload, no account. It pulls out your name, contact details, licenses,
+certifications, schools and degrees, and every role with its unit, bed count, nurse-to-patient
+ratio, trauma level and duties.
 
-It will not invent anything. A license number, an expiration date or an NPI that is not written
-in the document stays empty, and an NPI that fails its check digit is rejected with a note
-saying why.
+Nothing is saved yet. The import opens a **review panel** first. Two things there are worth
+knowing:
 
-If you have saved an Anthropic API key, a **Second pass with the model** button appears after
-the local parse. It writes only into fields the parser left blank and never overwrites
-something already filled. It is optional, and everything works without it.
+1. At the top it shows the first job's employer and title and asks whether they are the right way
+   round. If they are not, one button swaps them on every job at once, because a resume keeps the
+   same layout throughout.
+2. Each job has a **Where did this come from?** button that shows the actual lines from your
+   resume, with an Employer and a Title button beside each one. If a field is wrong, the right
+   text is usually already on screen, so one click fixes it.
 
-A scanned PDF with no text layer will come out empty. NurseApply does not do OCR, so retype or
-export a text-based PDF.
+Press **Use this** when it looks right, then **Save profile**.
+
+**If the import gets your resume wrong**, press **Fix with a chatbot**. It gives you three steps:
+copy the question, paste it into ChatGPT, Claude or Gemini, then paste the answer back. The free
+version of any of them is enough, there is no API key, and it works even if your resume is a
+scanned image with no text in it, because you can paste or type the text yourself.
+
+On some computers Chrome ships a small AI model that runs locally. Where it is present the
+extension quietly uses it to double-check which line is the employer and which is the job title.
+Nothing is sent anywhere and there is nothing to switch on.
+
+The parser will not invent anything. A license number, an expiration date, an NPI or a graduation
+date that is not written in the document stays empty, and an NPI that fails its check digit is
+rejected with a note saying why.
 
 **Type it in.** Work down the accordions. The sections that pay for themselves fastest are
 Licensure, Certifications and Work experience, because that is where hospital portals ask
