@@ -244,9 +244,13 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
       return false;
 
     case 'frame:result':
+      // Broadcast, not frameId 0. When a hospital hosts the application in an
+      // iframe on its own domain, the top frame has no content script and the
+      // iframe owns the pill, so results must reach every frame and let the
+      // owner pick them up.
       if (tabId !== undefined) {
         chrome.tabs.sendMessage(
-          tabId, { type: 'na:aggregate', result: msg.result }, { frameId: 0 },
+          tabId, { type: 'na:aggregate', result: msg.result },
           () => void chrome.runtime.lastError
         );
       }
@@ -312,6 +316,30 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
         .catch((e) => respond({ ok: false, error: e.message }));
       return true;
 
+    case 'sites:sync':
+      syncUserEnabledSites()
+        .then((n) => respond({ ok: true, count: n }))
+        .catch((e) => respond({ ok: false, error: e.message }));
+      return true;
+
+    case 'sites:inject':
+      // Inject immediately into the tab the user is looking at, so enabling a
+      // site takes effect without a reload.
+      (async () => {
+        try {
+          await chrome.scripting.insertCSS({
+            target: { tabId: msg.tabId, allFrames: true }, files: CSS_FILES
+          });
+          await chrome.scripting.executeScript({
+            target: { tabId: msg.tabId, allFrames: true }, files: CONTENT_FILES
+          });
+          respond({ ok: true });
+        } catch (e) {
+          respond({ ok: false, error: e.message });
+        }
+      })();
+      return true;
+
     case 'stats:bump':
       NA.storage.bumpStats({ filled: msg.filled || 0, skipped: msg.skipped || 0, sessions: 1 })
         .then((stats) => respond({ ok: true, stats }))
@@ -328,7 +356,62 @@ function broadcast(tabId, message) {
   chrome.tabs.sendMessage(tabId, message, () => void chrome.runtime.lastError);
 }
 
+/* ------------------------------------------------- sites the user enabled */
+
+/**
+ * Hospital careers pages live on thousands of domains, and the application is
+ * often an iframe on one of them. Rather than ask for every site up front, the
+ * popup asks for the one the user is looking at, and the grant is turned into
+ * a registered content script so it keeps working on later visits.
+ */
+const CONTENT_FILES = [
+  'src/schema/profile.js', 'src/lib/storage.js', 'src/content/domUtils.js',
+  'src/content/knockout.js', 'src/content/heuristics.js',
+  'src/content/adapters/base.js', 'src/content/adapters/workday.js',
+  'src/content/adapters/icims.js', 'src/content/adapters/taleo.js',
+  'src/content/adapters/successfactors.js', 'src/content/adapters/symplr.js',
+  'src/content/adapters/linkedin.js', 'src/content/adapters/indeed.js',
+  'src/content/adapters/registry.js', 'src/content/mapper.js',
+  'src/content/hud.js', 'src/content/index.js'
+];
+const CSS_FILES = ['src/content/hud.css'];
+const DYNAMIC_ID = 'nurseapply-user-enabled';
+
+async function syncUserEnabledSites() {
+  const granted = await new Promise((resolve) =>
+    chrome.permissions.getAll((p) => resolve((p && p.origins) || [])));
+  const patterns = granted.filter((o) => o !== '<all_urls>');
+
+  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [DYNAMIC_ID] })
+    .catch(() => []);
+  if (!patterns.length) {
+    if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: [DYNAMIC_ID] }).catch(() => {});
+    return 0;
+  }
+  const spec = {
+    id: DYNAMIC_ID,
+    matches: patterns,
+    js: CONTENT_FILES,
+    css: CSS_FILES,
+    allFrames: true,
+    runAt: 'document_idle',
+    persistAcrossSessions: true
+  };
+  try {
+    if (existing.length) await chrome.scripting.updateContentScripts([spec]);
+    else await chrome.scripting.registerContentScripts([spec]);
+  } catch (e) {
+    // A pattern the manifest already covers is rejected; nothing to do.
+  }
+  return patterns.length;
+}
+
+chrome.permissions.onAdded.addListener(() => { syncUserEnabledSites(); });
+chrome.permissions.onRemoved.addListener(() => { syncUserEnabledSites(); });
+chrome.runtime.onStartup.addListener(() => { syncUserEnabledSites(); });
+
 chrome.runtime.onInstalled.addListener((details) => {
+  syncUserEnabledSites();
   if (details.reason === 'install') {
     chrome.runtime.openOptionsPage();
   }

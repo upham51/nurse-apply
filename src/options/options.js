@@ -106,7 +106,6 @@
 
     const lab = el('span', { class: 'lab' });
     lab.textContent = spec.label;
-    if (spec.required) lab.appendChild(el('em', { text: ' *' }));
     if (spec.hint) {
       const h = el('span', { text: '  ' + spec.hint });
       h.style.opacity = '.55';
@@ -159,11 +158,11 @@
 
   function render() {
     mount('sec-personal', [
-      { path: 'identity.firstName', label: 'First name', col: 4, required: true },
-      { path: 'identity.lastName', label: 'Last name', col: 4, required: true },
+      { path: 'identity.firstName', label: 'First name', col: 4 },
+      { path: 'identity.lastName', label: 'Last name', col: 4 },
       { path: 'identity.preferredName', label: 'Preferred name', col: 4 },
-      { path: 'identity.email', label: 'Email', type: 'email', col: 6, required: true },
-      { path: 'identity.phone', label: 'Phone', type: 'tel', col: 6, required: true, normalize: 'phone', placeholder: '503-555-0142' },
+      { path: 'identity.email', label: 'Email', type: 'email', col: 6 },
+      { path: 'identity.phone', label: 'Phone', type: 'tel', col: 6, normalize: 'phone', placeholder: '503-555-0142' },
       { path: 'identity.address.street', label: 'Street address', col: 8 },
       { path: 'identity.address.line2', label: 'Apt / unit', col: 4 },
       { path: 'identity.address.city', label: 'City', col: 5 },
@@ -372,18 +371,23 @@
     });
   }
 
+  /**
+   * Nothing on this page is required. The profile saves whatever state it is
+   * in, and filling works from whatever is there. This list is a reminder of
+   * what hospital portals tend to ask for, so a blank licence number is
+   * noticed here rather than halfway through an application.
+   */
   function renderIssues() {
     const report = S.validateProfile(profile);
     const wrap = $('#issues-wrap');
     const ul = $('#issues');
     ul.textContent = '';
-    const all = report.errors.map((e) => ({ ...e, err: true })).concat(report.warnings);
+    const all = report.errors.concat(report.warnings);
     if (!all.length) { wrap.classList.add('hidden'); return; }
     wrap.classList.remove('hidden');
     all.slice(0, 30).forEach((issue) => {
-      const li = el('li', { class: issue.err ? 'err' : '' });
-      li.appendChild(document.createTextNode(issue.msg + ' '));
-      li.appendChild(el('code', { text: issue.path }));
+      const li = el('li', {});
+      li.appendChild(document.createTextNode(issue.msg));
       ul.appendChild(li);
     });
   }
@@ -411,17 +415,13 @@
   }
 
   async function save() {
-    const report = S.validateProfile(profile);
     await NA.storage.setProfile(profile);
     await NA.storage.setSettings(settings);
     dirty = false;
     renderIssues();
-    setStatus(
-      report.errors.length
-        ? `Saved. ${report.errors.length} field${report.errors.length === 1 ? '' : 's'} still need attention.`
-        : 'Saved.',
-      report.errors.length ? 'bad' : 'ok'
-    );
+    // Always a clean save. A half-finished profile is a perfectly good profile:
+    // it fills what it can and leaves the rest, which is better than refusing.
+    setStatus('Saved.', 'ok');
   }
 
   /* --------------------------------------------------------- resume import */

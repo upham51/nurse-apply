@@ -105,6 +105,24 @@ which platform was detected and which step you are on.
 The pill moves itself out of the way when a Next or Submit button is underneath it.
 The `×` hides it until you reload.
 
+## When a careers page does nothing
+
+NurseApply only runs where it has been allowed to. It comes switched on for the big platforms
+listed below, but hospitals put applications on their own domains constantly. If you open an
+application and no pill appears in the bottom right, click the NurseApply icon in the toolbar. It
+will offer to **turn on for this site**, name the site it means, and start working immediately
+without a reload. It remembers, so the next application on that site works straight away.
+
+If the application is inside a frame on the hospital's page, the pill appears inside that frame
+rather than at the bottom of the window.
+
+## Nothing is required
+
+Your profile saves in whatever state it is in. There are no required fields, no blocked saves,
+and no minimum before it will fill. A profile with no license number still fills everything else
+and leaves that box for you. The list at the top of the profile page is a reminder of what
+hospital forms usually ask for, not a gate.
+
 ## Supported portals
 
 myworkdayjobs.com, myworkdaysite.com, icims.com, taleo.net, successfactors.com,

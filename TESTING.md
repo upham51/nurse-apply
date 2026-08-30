@@ -57,6 +57,19 @@ dynamic import of the vendored pdf.js. A file:// or http:// harness cannot catch
 problem that only appears once the extension is installed, so run this one before believing a
 release works.
 
+`npm run test:portal` is the one that answers "does it actually work". It loads the packaged
+extension into a real browser and serves pages at real portal URLs, so the manifest's matches
+apply exactly as they do in the wild. It covers three cases: a Workday application on a matched
+domain, an application in an iframe on a hospital domain the manifest does not match, and a
+careers page nobody matches at all. For each it checks that a pill appears, that pressing Fill
+step fills the form, that the counter is honest about how many fields the page has, that the
+felony question is left alone, and that an unmatched site is offered a way to switch NurseApply
+on rather than a dead end.
+
+Three bugs that made the extension look broken were only visible from this harness: the iframe
+case had no interface at all, the popup was a dead end on unmatched domains, and a frame filled
+itself twice so its final result, including every refused question, was thrown away.
+
 ## Manual, on live portals
 
 Nothing here can substitute for running against a real posting. Platform selectors change,

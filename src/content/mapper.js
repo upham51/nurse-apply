@@ -224,6 +224,7 @@
       if (item.action === 'suggest') {
         results.suggested.push(describe(item));
         NA.dom.markSkipped(item.field.el);
+        if (onProgress) onProgress(results);
         continue;
       }
       if (item.action === 'skip' || item.action === 'unresolved') {
@@ -232,6 +233,7 @@
           if (item.reason === 'knockout' || item.reason === 'no-profile-answer') {
             NA.dom.markSkipped(item.field.el);
           }
+          if (onProgress) onProgress(results);
         }
         continue;
       }

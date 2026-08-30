@@ -138,11 +138,33 @@ left blank. It is never on the critical path.
    dates never leave the machine. Results are cached per form layout, so one hospital
    template costs one call, once.
 
-### Frames
+### Frames, and which one draws the pill
 
 iCIMS and Taleo host the application inside an iframe, so content scripts declare
-`all_frames: true`. Only the top frame draws the HUD; child frames scan and fill
-themselves and report results up through the service worker.
+`all_frames: true`. Normally the top frame draws the pill. But hospitals routinely put
+that iframe on their own careers domain, which the manifest does not match, so the top
+frame gets no content script at all. A child frame therefore asks the top frame whether
+it has a pill, and draws its own when nothing answers. Without this the iframe was
+fill-capable and completely silent, and the page looked dead.
+
+Each frame reports its own running totals repeatedly, so contributions are keyed by
+frame and replaced rather than summed. Adding every report made a seven-field form
+finish reading "12/14 filled".
+
+### Sites outside the fixed list
+
+Hospital careers pages live on thousands of domains and the manifest cannot list them.
+`<all_urls>` is never granted up front. Instead the popup offers to turn NurseApply on
+for the site you are looking at: it requests that one origin through
+`chrome.permissions.request`, injects immediately with `chrome.scripting.executeScript`
+so there is no reload, and registers a dynamic content script so it keeps working on
+later visits.
+
+### Nothing in the profile is required
+
+The profile saves in whatever state it is in, and filling works from whatever is there.
+The list at the top of the options page is a reminder of what hospital forms tend to ask
+for, not a gate. There are no required-field markers and no save is ever refused.
 
 ## Setup
 

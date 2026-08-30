@@ -210,9 +210,13 @@ button.small { padding: 5px 11px; font-size: 12px; }
 }
 .issues li::before {
   content: ''; position: absolute; left: 0; top: 12px;
-  width: 6px; height: 6px; border-radius: 50%; background: var(--amber);
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--ink-faint);
 }
-.issues li.err::before { background: var(--rose); }
+/* Review-panel notes keep a colour, since there they flag what a specific
+   import could not work out rather than what is merely blank. */
+#review .issues li::before { background: var(--amber); }
+#review .issues li.err::before { background: var(--rose); }
 .issues li code { color: var(--ink-faint); font-size: 11.5px; }
 
 table.data { width: 100%; border-collapse: collapse; font-size: 13px; }

@@ -13,6 +13,46 @@
     try { return window.top === window.self; } catch (e) { return false; }
   })();
 
+  /**
+   * Which frame draws the pill.
+   *
+   * Normally the top one. But hospitals routinely put an iCIMS or Taleo
+   * application in an iframe on their own careers domain, which the manifest
+   * does not match, so the top frame gets no content script at all. Before
+   * this, the iframe was filled-capable and silent, and the page looked
+   * completely dead. A child frame now asks the top frame whether it has a
+   * pill, and draws its own when nothing answers.
+   */
+  let ownsHud = false;
+  const PING = 'nurseapply:hud-present?';
+  const PONG = 'nurseapply:hud-present!';
+
+  window.addEventListener('message', (e) => {
+    if (e.data === PING && isTop) {
+      try { e.source.postMessage(PONG, '*'); } catch (err) { /* noop */ }
+    }
+  });
+
+  function topFrameHasHud() {
+    return new Promise((resolve) => {
+      let settled = false;
+      const onMessage = (e) => {
+        if (e.data !== PONG || settled) return;
+        settled = true;
+        window.removeEventListener('message', onMessage);
+        resolve(true);
+      };
+      window.addEventListener('message', onMessage);
+      try { window.top.postMessage(PING, '*'); } catch (e) { /* cross-origin is fine */ }
+      setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('message', onMessage);
+        resolve(false);
+      }, 700);
+    });
+  }
+
   let adapter = NA.adapterBase.BaseAdapter;
   let settings = null;
   let profile = null;
@@ -21,6 +61,13 @@
   let observer = null;
   let rescanTimer = null;
   let aggregate = { filled: 0, total: 0, skipped: [], suggested: [] };
+
+  // Each frame reports its own running totals, repeatedly. Summing every report
+  // counted the same frame's work several times over, so a seven-field form
+  // could finish reading "12/14 filled". Contributions are keyed by frame and
+  // replaced, then summed.
+  const frameKey = 'f' + Math.random().toString(36).slice(2, 10);
+  let contributions = new Map();
   let trackedThisStep = false;
 
   const send = (msg) => new Promise((resolve) => {
@@ -71,7 +118,7 @@
   }
 
   function refreshCounts() {
-    if (!isTop) return;
+    if (!ownsHud) return;
     const step = currentStep();
     const survey = surveyFrame();
     NA.hud.setState({
@@ -122,24 +169,28 @@
 
   function reportProgress(partial) {
     const payload = {
+      frame: frameKey,
       filled: partial.filled.length,
       total: partial.total,
       skipped: partial.skipped,
-      suggested: partial.suggested,
-      partial: true
+      suggested: partial.suggested
     };
-    if (isTop) mergeAggregate(payload, true);
+    if (ownsHud) mergeAggregate(payload);
     else send({ type: 'frame:result', result: payload });
   }
 
-  function mergeAggregate(res, isPartial) {
-    if (!isPartial) {
-      aggregate.filled += res.filled;
-      aggregate.total += res.total;
-    } else {
-      aggregate.filled = Math.max(aggregate.filled, res.filled);
-      aggregate.total = Math.max(aggregate.total, res.total);
-    }
+  function mergeAggregate(res) {
+    contributions.set(res.frame || frameKey, {
+      filled: Number(res.filled) || 0,
+      total: Number(res.total) || 0
+    });
+
+    let filled = 0;
+    let total = 0;
+    contributions.forEach((c) => { filled += c.filled; total += c.total; });
+    aggregate.filled = filled;
+    aggregate.total = total;
+
     const seen = new Set(aggregate.skipped.map((s) => s.naId));
     (res.skipped || []).forEach((s) => { if (!seen.has(s.naId)) aggregate.skipped.push(s); });
     const seenS = new Set(aggregate.suggested.map((s) => s.naId));
@@ -155,30 +206,26 @@
 
   async function runFill() {
     aggregate = { filled: 0, total: 0, skipped: [], suggested: [] };
-    if (isTop) NA.hud.setState({ status: 'filling', filled: 0, skipped: [], suggested: [] });
-
-    // Ask every frame in this tab, including this one.
+    contributions = new Map();
+    if (ownsHud) NA.hud.setState({ status: 'filling', filled: 0, skipped: [], suggested: [], drawerOpen: false });
     await send({ type: 'fill:broadcast' });
+  }
 
-    const own = await fillThisFrame();
-    if (own) {
-      mergeAggregate({
-        filled: own.filled.length, total: own.total,
-        skipped: own.skipped, suggested: own.suggested
-      }, false);
-      if (!isTop) {
-        await send({ type: 'frame:result', result: {
-          filled: own.filled.length, total: own.total,
-          skipped: own.skipped, suggested: own.suggested
-        } });
-      }
+  async function finishFrame(res) {
+    if (!res) return;
+    const payload = {
+      frame: frameKey,
+      filled: res.filled.length, total: res.total,
+      skipped: res.skipped, suggested: res.suggested
+    };
+    if (!ownsHud) {
+      await send({ type: 'frame:result', result: payload });
+      return;
     }
-
-    if (isTop) {
-      NA.hud.setState({ status: 'done' });
-      await recordApplication();
-      await send({ type: 'stats:bump', filled: aggregate.filled, skipped: aggregate.skipped.length });
-    }
+    mergeAggregate(payload);
+    NA.hud.setState({ status: 'done' });
+    await recordApplication();
+    await send({ type: 'stats:bump', filled: aggregate.filled, skipped: aggregate.skipped.length });
   }
 
   async function recordApplication() {
@@ -214,7 +261,8 @@
         lastFingerprint = fp;
         trackedThisStep = false;
         aggregate = { filled: 0, total: 0, skipped: [], suggested: [] };
-        if (isTop) {
+        contributions = new Map();
+        if (ownsHud) {
           NA.hud.setState({ status: 'idle', filled: 0, skipped: [], suggested: [], drawerOpen: false });
           refreshCounts();
         }
@@ -233,24 +281,19 @@
 
     if (msg.type === 'na:fill') {
       fillThisFrame().then((res) => {
-        if (res && !isTop) {
-          send({ type: 'frame:result', result: {
-            filled: res.filled.length, total: res.total,
-            skipped: res.skipped, suggested: res.suggested
-          } });
-        }
+        finishFrame(res);
         respond({ ok: true });
       });
       return true;
     }
 
-    if (msg.type === 'na:aggregate' && isTop) {
+    if (msg.type === 'na:aggregate' && ownsHud) {
       mergeAggregate(msg.result, false);
       respond({ ok: true });
       return false;
     }
 
-    if (msg.type === 'na:command' && isTop) {
+    if (msg.type === 'na:command' && ownsHud) {
       if (msg.command === 'fill') runFill();
       if (msg.command === 'clear') { NA.dom.clearMarks(); refreshCounts(); }
       if (msg.command === 'status') {
@@ -266,7 +309,7 @@
     }
 
     if (msg.type === 'na:settingsChanged') {
-      loadState().then(() => { if (isTop) refreshCounts(); });
+      loadState().then(() => { if (ownsHud) refreshCounts(); });
       respond({ ok: true });
       return false;
     }
@@ -284,12 +327,17 @@
     const fields = NA.mapper.scan(adapter, document);
     lastFingerprint = NA.dom.fingerprintForm(fields);
 
+    const hasForm = fields.length > 0 || !!document.querySelector('form');
     if (isTop) {
-      // Do not draw the HUD on a page with no form at all.
-      if (fields.length === 0 && !document.querySelector('form')) {
-        watchForStepChanges();
-        return;
-      }
+      ownsHud = hasForm;
+    } else if (hasForm && fields.length > 0) {
+      // Only adopt the pill if nothing above us has one, and only if this frame
+      // is big enough to be the application rather than a tracking pixel.
+      const big = window.innerHeight > 260 && window.innerWidth > 320;
+      ownsHud = big && !(await topFrameHasHud());
+    }
+
+    if (ownsHud) {
       pageContext();
       NA.hud.on({
         onFill: runFill,

@@ -48,9 +48,22 @@ if (manifest.manifest_version !== 3) bad('manifest_version must be 3');
 else ok('manifest_version 3');
 
 if ((manifest.host_permissions || []).some((h) => h === '<all_urls>')) {
-  bad('<all_urls> is present; host permissions must stay explicit');
+  bad('<all_urls> is granted up front; host permissions must stay explicit');
 } else {
-  ok(`${(manifest.host_permissions || []).length} explicit host permissions, no <all_urls>`);
+  ok(`${(manifest.host_permissions || []).length} explicit host permissions, none granted up front`);
+}
+
+// Broad access is available, but only where the user asks for it site by site.
+const optional = manifest.optional_host_permissions || [];
+if (optional.length) {
+  ok(`${optional.length} optional host permission pattern(s), requested per site from the popup`);
+} else {
+  bad('no optional host permissions, so career sites outside the fixed list cannot be enabled');
+}
+if ((manifest.permissions || []).indexOf('scripting') !== -1) {
+  ok('scripting permission present, needed to turn a site on without a reload');
+} else {
+  bad('scripting permission missing; enabling a site would need a manual reload');
 }
 
 const referenced = [];

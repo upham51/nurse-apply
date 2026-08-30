@@ -1,0 +1,122 @@
+{
+ "identity": {
+  "firstName": "Jordan",
+  "lastName": "Reyes",
+  "email": "jordan.reyes@example.com",
+  "phone": "5035550142",
+  "address": {
+   "street": "412 NW Clark St",
+   "line2": "",
+   "city": "Portland",
+   "state": "OR",
+   "zip": "97209"
+  },
+  "workAuthorization": true,
+  "requiresSponsorship": false,
+  "veteranStatus": "Decline",
+  "disabilityStatus": "Decline",
+  "gender": "Decline",
+  "raceEthnicity": "Decline",
+  "willingToRelocate": false
+ },
+ "nursingCredentials": {
+  "npiNumber": "",
+  "nclex": {
+   "passDate": "2016-08",
+   "state": "OR"
+  }
+ },
+ "licenses": [
+  {
+   "type": "RN",
+   "state": "OR",
+   "number": "RN201644882",
+   "issueDate": "",
+   "expirationDate": "2027-08-31",
+   "isCompact": true,
+   "isPrimaryState": true,
+   "disciplinaryAction": false,
+   "disciplinaryExplanation": ""
+  }
+ ],
+ "certifications": [
+  {
+   "name": "BLS",
+   "otherName": "",
+   "issuingBody": "AHA",
+   "issueDate": "",
+   "expirationDate": "2027-02-28",
+   "verificationUrlOrCertId": ""
+  }
+ ],
+ "education": [
+  {
+   "degree": "BSN",
+   "major": "Nursing",
+   "school": "Oregon Health & Science University",
+   "city": "Portland",
+   "state": "OR",
+   "graduationDate": "2016-06",
+   "gpa": ""
+  }
+ ],
+ "experience": [
+  {
+   "employer": "Providence St Vincent",
+   "facilityType": "Hospital",
+   "traumaLevel": "Level II",
+   "unit": "MICU",
+   "bedCount": "24",
+   "typicalRatio": "1:2",
+   "title": "Registered Nurse III",
+   "startDate": "2019-03",
+   "endDate": "",
+   "isCurrent": true,
+   "supervisorName": "Dana Whitfield",
+   "supervisorTitle": "Nurse Manager",
+   "supervisorPhone": "5035550188",
+   "supervisorEmail": "dana.w@example.org",
+   "mayContact": true,
+   "reasonForLeaving": "",
+   "responsibilities": "Vented patients; CRRT."
+  }
+ ],
+ "clinicalSkills": {
+  "emrSystems": [
+   "Epic"
+  ],
+  "procedures": [
+   "IV Insertion"
+  ],
+  "languages": []
+ },
+ "preferences": {
+  "shift": "Nights",
+  "shiftLength": "12 hr",
+  "employmentType": "Full-Time",
+  "minHourlyRate": "62",
+  "weekendAvailability": true,
+  "holidayAvailability": true,
+  "floatPoolWilling": false,
+  "travelWilling": false
+ },
+ "references": [],
+ "compliance": {
+  "tbTestDate": "2026-01-08",
+  "tbTestType": "Quantiferon Gold",
+  "fluVaccineSeason": "2025-2026",
+  "covidVaccineStatus": "Fully Vaccinated",
+  "hepBStatus": "Series Complete",
+  "mmrTiterDate": "",
+  "varicellaTiterDate": "",
+  "drugScreenWilling": true,
+  "backgroundCheckWilling": true
+ },
+ "documents": {
+  "resumeFileName": "",
+  "resumeText": "",
+  "resumeBase64": "",
+  "resumeMimeType": "",
+  "coverLetterTemplate": ""
+ }
+}
