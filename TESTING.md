@@ -41,6 +41,13 @@ is typed rather than waiting for Save profile, that clearing the field clears th
 resume import asks for a key up front instead of failing after a file has been chosen, and that the
 attach-without-parsing path is offered.
 
+`npm run test:ext` packages the extension, loads it into a real Chromium with `--load-extension`,
+and drives it from a `chrome-extension://` origin. This is the only harness that runs under actual
+Manifest V3 rules: the real extension CSP, a real service worker, real `chrome.storage`, and real
+dynamic import of the vendored pdf.js. A file:// or http:// harness cannot catch a CSP or worker
+problem that only appears once the extension is installed, so run this one before believing a
+release works.
+
 ## Manual, on live portals
 
 Nothing here can substitute for running against a real posting. Platform selectors change,
@@ -95,6 +102,14 @@ To watch the plan without touching the page:
 const fields = NA.mapper.scan(NA.adapterRegistry.pick(location, document), document);
 NA.mapper.plan(fields, NA.currentProfile, { fillDemographics: true }, NA.adapterRegistry.pick(location, document));
 ```
+
+### When the extension misbehaves after an update
+
+Chrome keeps running the code from the folder you selected at Load unpacked. Two things follow.
+First, the card does not pick up new code until you press reload on it. Second, if that folder is
+moved or deleted, Chrome shows an error on the card and keeps serving whatever it last read, so
+you can be looking at a version that no longer exists on disk. Check the version number on the
+NurseApply card in `chrome://extensions` against `manifest.json` before debugging anything else.
 
 ### Service worker logs
 
