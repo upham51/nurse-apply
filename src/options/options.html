@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NurseApply profile</title>
+<link rel="stylesheet" href="../ui/theme.css">
+</head>
+<body>
+<div class="shell">
+
+  <header class="masthead">
+    <div class="brand">
+      <div class="mark">NA</div>
+      <div>
+        <h1>NurseApply profile</h1>
+        <p>Everything here stays on this computer. Nothing syncs, nothing is uploaded.</p>
+      </div>
+    </div>
+    <div class="row-actions">
+      <button id="btn-tracker" class="ghost">Open tracker</button>
+      <button id="btn-import-resume" class="ghost">Import resume</button>
+      <button id="btn-save" class="primary">Save profile</button>
+    </div>
+  </header>
+
+  <div id="issues-wrap" class="panel hidden">
+    <div class="panel-head">Before you apply</div>
+    <div class="panel-body"><ul class="issues" id="issues"></ul></div>
+  </div>
+
+  <details class="panel" open>
+    <summary>Personal <span class="hint">name, contact, address, EEO</span><span class="chev">›</span></summary>
+    <div class="panel-body"><div class="grid" id="sec-personal"></div></div>
+  </details>
+
+  <details class="panel">
+    <summary>Licensure <span class="hint">NPI, NCLEX, every active license</span><span class="chev">›</span></summary>
+    <div class="panel-body">
+      <div class="grid" id="sec-credentials"></div>
+      <div id="list-licenses"></div>
+      <div class="row-actions"><button class="small" data-add="licenses">Add a license</button></div>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary>Certifications <span class="hint">BLS, ACLS, PALS and the rest</span><span class="chev">›</span></summary>
+    <div class="panel-body">
+      <div id="list-certifications"></div>
+      <div class="row-actions"><button class="small" data-add="certifications">Add a certification</button></div>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary>Education <span class="hint">nursing school and any degrees since</span><span class="chev">›</span></summary>
+    <div class="panel-body">
+      <div id="list-education"></div>
+      <div class="row-actions"><button class="small" data-add="education">Add a school</button></div>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary>Work experience <span class="hint">unit, ratios, trauma level, supervisor</span><span class="chev">›</span></summary>
+    <div class="panel-body">
+      <p class="note">Order matters. Put your most recent role first: portals that ask for
+        <strong>current employer</strong> take the first entry marked current.</p>
+      <div id="list-experience"></div>
+      <div class="row-actions"><button class="small" data-add="experience">Add a role</button></div>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary>Skills and EMR <span class="hint">charting systems, procedures, languages</span><span class="chev">›</span></summary>
+    <div class="panel-body">
+      <label class="field"><span class="lab">EMR systems you have charted in</span></label>
+      <div class="chips" id="chips-emr"></div>
+      <div style="height:18px"></div>
+      <div class="grid" id="sec-skills"></div>
+      <div style="height:6px"></div>
+      <label class="field"><span class="lab">Languages</span></label>
+      <div id="list-languages"></div>
+      <div class="row-actions"><button class="small" data-add="languages">Add a language</button></div>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary>Preferences <span class="hint">shift, employment type, availability</span><span class="chev">›</span></summary>
+    <div class="panel-body"><div class="grid" id="sec-preferences"></div></div>
+  </details>
+
+  <details class="panel">
+    <summary>References <span class="hint">who a recruiter may call</span><span class="chev">›</span></summary>
+    <div class="panel-body">
+      <div id="list-references"></div>
+      <div class="row-actions"><button class="small" data-add="references">Add a reference</button></div>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary>Compliance <span class="hint">TB, immunizations, screening consent</span><span class="chev">›</span></summary>
+    <div class="panel-body">
+      <p class="note">These are the dates employee health asks for. NurseApply fills them into
+        onboarding forms. It never answers a question about a diagnosis, a restriction,
+        or an accommodation.</p>
+      <div class="grid" id="sec-compliance"></div>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary>Documents <span class="hint">resume file and cover letter template</span><span class="chev">›</span></summary>
+    <div class="panel-body">
+      <div class="grid" id="sec-documents"></div>
+      <p class="note">Cover letter tokens: <code>{{hospital}}</code>, <code>{{role}}</code>,
+        <code>{{unit}}</code>, <code>{{certifications}}</code>, <code>{{emr_experience}}</code>.
+        NurseApply drafts it into the drawer. It never inserts it without you clicking.</p>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary>Settings <span class="hint">API key, model fallback, backup</span><span class="chev">›</span></summary>
+    <div class="panel-body">
+      <p class="note">The model fallback is off by default. When it is on, NurseApply sends
+        <strong>only the structure of the form</strong>: control type, the visible label, and the
+        options a dropdown offers. Your name, license number, immunization dates and every other
+        value stay on this machine. Answers are cached per form layout, so a given hospital
+        template costs one call, once.</p>
+      <div class="grid" id="sec-settings"></div>
+      <div style="height:14px"></div>
+      <div class="row-actions">
+        <button id="btn-test-key" class="small">Test API key</button>
+        <button id="btn-clear-cache" class="small ghost">Clear mapping cache</button>
+        <button id="btn-export" class="small ghost">Export profile</button>
+        <button id="btn-import" class="small ghost">Import backup</button>
+        <button id="btn-wipe" class="small danger">Erase everything</button>
+      </div>
+      <input type="file" id="file-import" accept="application/json" class="hidden">
+    </div>
+  </details>
+
+  <div class="statusline">
+    <span class="msg" id="status">Loading…</span>
+    <button id="btn-save-2" class="primary">Save profile</button>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+
+<script src="../schema/profile.js"></script>
+<script src="../lib/storage.js"></script>
+<script src="../lib/docx.js"></script>
+<script src="options.js"></script>
+</body>
+</html>

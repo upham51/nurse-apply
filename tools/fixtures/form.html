@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Synthetic ATS form</title>
+<style>body{font-family:system-ui;padding:20px} label{display:block;margin:10px 0}
+.listbox{border:1px solid #ccc;position:absolute;background:#fff;max-height:180px;overflow:auto}
+.listbox[hidden]{display:none}</style></head>
+<body>
+<form id="app">
+  <label for="fn">First Name</label><input id="fn" name="firstName">
+  <label for="naive">Control field, not mapped</label><input id="naive" name="zz_control">
+  <label for="ln">Last Name</label><input id="ln" name="lastName">
+  <label for="em">Email Address</label><input id="em" type="email" name="email">
+  <label for="ph">Primary Phone</label><input id="ph" name="phone">
+  <label for="lic">RN License Number</label><input id="lic" name="license_number">
+  <label for="licexp">License Expiration Date</label><input id="licexp" name="license_exp" placeholder="MM/DD/YYYY">
+  <label for="st">License Issuing State</label>
+  <select id="st" name="license_state">
+    <option value="">Select One</option>
+    <option value="CA">California</option>
+    <option value="OR">Oregon</option>
+    <option value="WA">Washington</option>
+  </select>
+
+  <label id="unitlbl">Clinical Specialty / Unit</label>
+  <div role="combobox" id="unit" aria-haspopup="listbox" aria-controls="unitlist"
+       aria-labelledby="unitlbl" tabindex="0" style="border:1px solid #999;padding:6px;width:260px">Select…</div>
+  <div class="listbox" id="unitlist" role="listbox" hidden>
+    <input id="unitsearch" type="text" placeholder="Search">
+    <div role="option">Emergency</div>
+    <div role="option">Medical ICU</div>
+    <div role="option">MICU</div>
+    <div role="option">Labor &amp; Delivery</div>
+    <div role="option">Med-Surg</div>
+  </div>
+
+  <fieldset><legend>Are you legally authorized to work in the United States?</legend>
+    <label><input type="radio" name="workauth" value="y"> Yes</label>
+    <label><input type="radio" name="workauth" value="n"> No</label>
+  </fieldset>
+
+  <fieldset><legend>Have you ever been terminated or asked to resign from a position?</legend>
+    <label><input type="radio" name="term" value="y"> Yes</label>
+    <label><input type="radio" name="term" value="n"> No</label>
+  </fieldset>
+
+  <fieldset><legend>Have you ever been convicted of a felony?</legend>
+    <label><input type="radio" name="felony" value="y"> Yes</label>
+    <label><input type="radio" name="felony" value="n"> No</label>
+  </fieldset>
+
+  <label for="notes">Reason for Leaving</label><input id="notes" name="reason_leaving">
+  <label for="typed">City</label><input id="typed" name="city" value="DO NOT OVERWRITE">
+  <label for="ssn">Social Security Number</label><input id="ssn" name="ssn">
+  <label for="emr">Electronic Medical Record system used</label><input id="emr" name="emr">
+  <label for="ratio">Typical nurse to patient ratio</label><input id="ratio" name="ratio">
+  <label for="trauma">Trauma Level Designation</label><input id="trauma" name="trauma">
+  <label for="tb">TB Test Date</label><input id="tb" name="tb" placeholder="MM/DD/YYYY">
+  <label for="why">Why do you want to work here?</label><textarea id="why" name="why"></textarea>
+</form>
+
+<script>
+// Simulates a controlled React input: component state is the source of truth,
+// the DOM is re-rendered from it, and a write that does not produce an input
+// event is discarded on the next render. #fn is the field under test; #naive is
+// the negative control, proving this harness actually catches a bad write.
+function makeControlled(id, onInput) {
+  const node = document.getElementById(id);
+  let state = '';
+  const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  node._valueTracker = {
+    getValue() { return state; },
+    setValue(v) { state = v; }
+  };
+  node.addEventListener('input', () => {
+    state = desc.get.call(node);   // setState(e.target.value)
+    if (onInput) onInput();
+  });
+  setInterval(() => {                // re-render from state
+    if (desc.get.call(node) !== state) desc.set.call(node, state);
+  }, 40);
+}
+makeControlled('fn', () => { window.__reactSawInput = true; });
+makeControlled('naive');
+
+// ARIA combobox behaviour: opens on click, filters on search input.
+(function () {
+  const trigger = document.getElementById('unit');
+  const list = document.getElementById('unitlist');
+  const search = document.getElementById('unitsearch');
+  const options = () => Array.from(list.querySelectorAll('[role=option]'));
+
+  function open() {
+    const r = trigger.getBoundingClientRect();
+    list.hidden = false;
+    list.style.left = r.left + 'px';
+    list.style.top = (r.bottom + window.scrollY) + 'px';
+    list.style.width = r.width + 'px';
+  }
+  trigger.addEventListener('click', open);
+  trigger.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown') open(); });
+  search.addEventListener('input', () => {
+    const q = search.value.toLowerCase();
+    options().forEach((o) => { o.style.display = o.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+  });
+  list.addEventListener('click', (e) => {
+    const o = e.target.closest('[role=option]');
+    if (!o) return;
+    trigger.textContent = o.textContent;
+    trigger.dataset.value = o.textContent;
+    list.hidden = true;
+  });
+})();
+</script>
+</body></html>

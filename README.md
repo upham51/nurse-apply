@@ -1,0 +1,109 @@
+# NurseApply
+
+A Chrome extension (Manifest V3) that autofills nursing job applications on hospital
+hiring portals. No backend, no accounts, no telemetry. Everything lives in
+`chrome.storage.local` on the machine you installed it on.
+
+## What it does and what it refuses to do
+
+It fills forms and stops. It never clicks a submit button, never solves a CAPTCHA,
+never navigates a wizard on its own, and never overwrites a field you have already
+typed into. You review every screen and press the button yourself.
+
+It also refuses to answer a specific class of question, no matter how confidently the
+mapper thinks it knows the answer:
+
+1. Termination, involuntary separation, resignation in lieu of termination, rehire eligibility
+2. Criminal history, convictions, pending charges
+3. Board discipline: revocation, suspension, surrender, consent orders, restrictions
+4. Federal exclusion and sanction questions: OIG, SAM, abuse registries
+5. Malpractice claims and National Practitioner Data Bank reports
+6. Failed or refused drug screens, diversion, impaired practice
+7. Government and financial identifiers: Social Security number, date of birth, driver's license number, bank details
+8. Electronic signatures and certification attestations
+
+Every one of those is verified downstream by a credentialing office against the state
+board, your prior employer's HR file, and federal exclusion lists. A wrong answer is not
+a typo, it is a false statement on an employment application. They go to the "Review
+skipped" drawer with the reason, and they wait for you.
+
+## Architecture
+
+```
+manifest.json                MV3, explicit host permissions, all_frames content scripts
+src/schema/profile.js        the nurse profile shape, validation, date and state formatting
+src/lib/storage.js           chrome.storage.local wrapper, tracker, mapping cache, backup
+src/lib/docx.js              .docx text extraction using the browser's own DecompressionStream
+src/content/domUtils.js      native-setter writes, ARIA combobox driver, field collection
+src/content/knockout.js      the guard described above
+src/content/heuristics.js    Tier 2: ~90 label rules covering nursing-specific fields
+src/content/adapters/        Tier 1: Workday, iCIMS, Taleo, SuccessFactors, symplr, LinkedIn, Indeed
+src/content/mapper.js        resolution, planning and execution
+src/content/hud.js           floating status pill and skipped drawer, in a shadow root
+src/content/index.js         per-frame orchestrator, MutationObserver, message routing
+src/background/              service worker: storage access, frame fan-out, Anthropic calls
+src/options/                 profile builder and settings
+src/tracker/                 application tracker with CSV export
+src/popup/                   toolbar popup
+tools/                       integrity check, headless fill harness, packaging
+```
+
+### Why writes go through the prototype setter
+
+React, Angular and Oracle ADF all keep their own copy of an input's value. Assigning
+`element.value = x` mutates the DOM node without telling the framework, so the next
+re-render discards it. Every write in `domUtils.js` calls the native setter taken from
+`HTMLInputElement.prototype`, clears React's `_valueTracker`, then dispatches
+`keydown`, `input`, `change`, `keyup` and `blur`. `tools/test-fill.mjs` proves this
+against a simulated controlled React input, and includes a negative control: a naive
+assignment on an identically guarded field, which the simulation must discard.
+
+### Three tiers of mapping
+
+1. **Adapter override.** Keyed on stable platform attributes, for example Workday's
+   `data-automation-id="legalNameSection_firstName"`. Adapters are additive: they add
+   hints and can never block a fill.
+2. **Heuristics.** Weighted regex rules over the resolved label, which is assembled from
+   the `<label>` element, `aria-label`, `aria-labelledby`, placeholder, name, id,
+   `data-automation-id` and, for radios and checkboxes, the enclosing fieldset legend.
+   That last one matters: without it, "Have you ever been convicted of a felony?" reads
+   as a field labelled "Yes".
+3. **Model fallback.** Off by default. When enabled, NurseApply sends only the structure
+   of the form: control type, visible label, and the options a dropdown offers. The model
+   returns a canonical key name, never a value. Your name, license number and immunization
+   dates never leave the machine. Results are cached per form layout, so one hospital
+   template costs one call, once.
+
+### Frames
+
+iCIMS and Taleo host the application inside an iframe, so content scripts declare
+`all_frames: true`. Only the top frame draws the HUD; child frames scan and fill
+themselves and report results up through the service worker.
+
+## Setup
+
+See `SETUP.md`. Short version: `chrome://extensions`, turn on Developer mode, "Load
+unpacked", pick this folder, then fill in your profile.
+
+## Verifying a change
+
+```
+npm run check    # syntax, manifest integrity, safety invariants
+npm test         # headless fill against a synthetic React-style ATS form
+npm run package  # dist/nurseapply-<version>.zip
+```
+
+`npm test` needs Playwright's Chromium. `npm install` then `npx playwright install chromium`
+if you do not already have one.
+
+## Data and privacy
+
+Nothing is sent anywhere except the Anthropic API, and only when you have entered your
+own API key and switched the fallback on. The extension uses `chrome.storage.local`
+exclusively, never `chrome.storage.sync`, so license numbers and immunization records do
+not replicate to your other machines through a Google account. Profile export
+deliberately omits the API key.
+
+## License
+
+MIT. See `LICENSE`.

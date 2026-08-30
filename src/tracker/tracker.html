@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NurseApply tracker</title>
+<link rel="stylesheet" href="../ui/theme.css">
+</head>
+<body>
+<div class="shell">
+  <header class="masthead">
+    <div class="brand">
+      <div class="mark">NA</div>
+      <div>
+        <h1>Application tracker</h1>
+        <p>Every portal NurseApply filled, deduplicated by company and role.</p>
+      </div>
+    </div>
+    <div class="row-actions">
+      <button id="btn-profile" class="ghost">Edit profile</button>
+      <button id="btn-csv" class="primary">Export CSV</button>
+    </div>
+  </header>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="kpis" id="kpis"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <input type="text" id="q" placeholder="Search company, role, notes" style="max-width:280px">
+      <select id="filter-status" style="max-width:180px">
+        <option value="">All statuses</option>
+        <option>Draft</option><option>Submitted</option><option>Interviewing</option>
+        <option>Offered</option><option>Archived</option>
+      </select>
+      <select id="filter-ats" style="max-width:180px"><option value="">All portals</option></select>
+    </div>
+    <div class="panel-body" style="padding:0 0 6px">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Company</th><th>Role</th><th>Location</th><th>Portal</th>
+            <th>Started</th><th>Status</th><th>Notes</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p class="note" id="empty" style="padding:20px">Nothing tracked yet. Fill a form on a hospital portal and it will show up here.</p>
+    </div>
+  </div>
+
+  <div class="statusline"><span class="msg" id="status">Loading…</span></div>
+</div>
+
+<script src="../schema/profile.js"></script>
+<script src="../lib/storage.js"></script>
+<script src="tracker.js"></script>
+</body>
+</html>

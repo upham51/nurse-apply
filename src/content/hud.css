@@ -1,0 +1,11 @@
+/* Host-level only. Everything visual lives inside the shadow root so the
+   portal's own stylesheet cannot reach it and ours cannot leak out. */
+#nurseapply-hud-host {
+  position: fixed;
+  z-index: 2147483646;
+  inset: auto 20px 20px auto;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+#nurseapply-hud-host[data-na-visible="true"] { pointer-events: auto; }
