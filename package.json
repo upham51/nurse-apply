@@ -1,6 +1,6 @@
 {
   "name": "nurseapply",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
   "description": "Chrome extension that autofills nursing job applications. Fills only, never submits.",
   "scripts": {

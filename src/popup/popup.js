@@ -61,11 +61,38 @@
       $('#where').textContent = [s.adapter, s.step].filter(Boolean).join(' · ') || 'Ready on this page';
       $('#enable-wrap').classList.add('hidden');
     } else {
-      // Nothing is running here. Hospital careers pages live on thousands of
-      // domains and the manifest cannot list them all, so rather than a dead
-      // end, offer to turn NurseApply on for this one.
+      // Nothing answered. That is either a site NurseApply does not cover, or
+      // one it does cover that has not finished loading. Offering to "turn on"
+      // a site that is already covered is worse than useless: the permission is
+      // already held, so nothing is asked, and the injection lands on top of a
+      // content script that is already there.
       const origin = tab ? originOf(tab.url) : null;
-      if (!origin) {
+      const covered = tab ? await send({ type: 'sites:covered', origin, url: tab.url }) : null;
+
+      if (covered && covered.covered) {
+        $('#where').textContent = 'Supported here, but nothing has loaded yet';
+        $('#enable-wrap').classList.remove('hidden');
+        $('#enable').textContent = 'Start it on this page';
+        $('#enable-note').textContent =
+          'Workday and iCIMS build the form after the page loads, so this can take a moment. ' +
+          'If it stays quiet, reload the page.';
+        $('#enable').addEventListener('click', async () => {
+          $('#enable').disabled = true;
+          $('#enable').textContent = 'Starting…';
+          const res = await send({ type: 'sites:inject', tabId: tab.id });
+          if (res && res.ok && res.alreadyRunning) {
+            $('#enable-note').textContent =
+              'It is already running on this page. If there is no pill, the form may not have rendered yet.';
+            $('#enable').textContent = 'Already running';
+          } else if (res && res.ok) {
+            window.close();
+          } else {
+            $('#enable').disabled = false;
+            $('#enable').textContent = 'Start it on this page';
+            $('#enable-note').textContent = (res && res.error) || 'Could not start it. Reload the page.';
+          }
+        });
+      } else if (!origin) {
         $('#where').textContent = 'NurseApply cannot run on this kind of page';
         $('#enable-wrap').classList.add('hidden');
       } else {
@@ -76,7 +103,7 @@
           : 'Not switched on for this site yet';
         $('#enable-wrap').classList.remove('hidden');
         $('#enable-host').textContent = host;
-        $('#enable').textContent = already ? 'Load it on this page' : 'Turn on for ' + host;
+        $('#enable').textContent = already ? 'Start it on this page' : 'Turn on for ' + host;
         $('#enable').addEventListener('click', async () => {
           $('#enable').disabled = true;
           $('#enable').textContent = 'Asking…';
@@ -84,7 +111,7 @@
           if (!granted) {
             $('#enable').disabled = false;
             $('#enable').textContent = 'Turn on for ' + host;
-            $('#enable-note').textContent = 'Chrome declined that. You can also allow it from the extension’s details page.';
+            $('#enable-note').textContent = 'Chrome declined that. You can also allow it from the extension\u2019s details page.';
             return;
           }
           await send({ type: 'sites:sync' });

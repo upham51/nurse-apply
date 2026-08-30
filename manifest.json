@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NurseApply",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Autofills nursing job applications on hospital hiring portals. It fills. You review and submit.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -18,7 +18,6 @@
   "host_permissions": [
     "*://*.myworkdayjobs.com/*",
     "*://*.myworkdaysite.com/*",
-    "*://*.wd1.myworkdayjobs.com/*",
     "*://*.icims.com/*",
     "*://*.taleo.net/*",
     "*://*.successfactors.com/*",

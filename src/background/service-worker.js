@@ -368,22 +368,15 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
       return true;
 
     case 'sites:inject':
-      // Inject immediately into the tab the user is looking at, so enabling a
-      // site takes effect without a reload.
-      (async () => {
-        try {
-          await chrome.scripting.insertCSS({
-            target: { tabId: msg.tabId, allFrames: true }, files: CSS_FILES
-          });
-          await chrome.scripting.executeScript({
-            target: { tabId: msg.tabId, allFrames: true }, files: CONTENT_FILES
-          });
-          respond({ ok: true });
-        } catch (e) {
-          respond({ ok: false, error: e.message });
-        }
-      })();
+      injectIntoTab(msg.tabId).then(respond);
       return true;
+
+    case 'sites:covered':
+      // Is this origin already handled statically? The popup asks so it does
+      // not offer to "turn on" a site that is simply still loading.
+      respond({ ok: true, covered: isCoveredByManifest(msg.origin) ||
+        manifestContentMatches().some((m) => matchesPattern(m, msg.url)) });
+      return false;
 
     case 'stats:bump':
       NA.storage.bumpStats({ filled: msg.filled || 0, skipped: msg.skipped || 0, sessions: 1 })
@@ -395,6 +388,26 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
       return false;
   }
 });
+
+/** Enough of Chrome's match-pattern syntax for the popup's question. */
+function matchesPattern(pattern, url) {
+  try {
+    const m = /^(\*|https?|file|ftp):\/\/(\*|(?:\*\.)?[^/*]+)?(\/.*)$/.exec(pattern);
+    if (!m) return false;
+    const [, scheme, host, path] = m;
+    const u = new URL(url);
+    if (scheme !== '*' && u.protocol !== scheme + ':') return false;
+    if (host && host !== '*') {
+      if (host.indexOf('*.') === 0) {
+        const bare = host.slice(2);
+        if (u.hostname !== bare && !u.hostname.endsWith('.' + bare)) return false;
+      } else if (u.hostname !== host) return false;
+    }
+    const rx = new RegExp('^' + path.split('*').map((p) =>
+      p.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$');
+    return rx.test(u.pathname + u.search);
+  } catch (e) { return false; }
+}
 
 function broadcast(tabId, message) {
   if (tabId === undefined) return;
@@ -422,10 +435,69 @@ const CONTENT_FILES = [
 const CSS_FILES = ['src/content/hud.css'];
 const DYNAMIC_ID = 'nurseapply-user-enabled';
 
+/**
+ * Which origins the manifest already covers with a static content script.
+ * chrome.permissions.getAll() returns everything the extension holds, which
+ * includes every ATS domain in the manifest and every model API endpoint.
+ * Registering a dynamic script for those would put a second copy of the
+ * content script into a frame that already has one, and inject the extension
+ * into API responses.
+ */
+/**
+ * Puts the content script into a tab on demand, so turning a site on takes
+ * effect without a reload. Frames that already have it are skipped: injecting
+ * on top of a running copy gives that frame two HUDs, two observers and
+ * doubled fills.
+ */
+async function injectIntoTab(tabId) {
+  try {
+    const present = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      func: () => !!(window.NA && window.NA.dom)
+    }).catch(() => []);
+    const virgin = present.filter((r) => r && r.result !== true).map((r) => r.frameId);
+    if (!virgin.length) return { ok: true, alreadyRunning: true };
+
+    await chrome.scripting.insertCSS({ target: { tabId, frameIds: virgin }, files: CSS_FILES })
+      .catch(() => {});
+    await chrome.scripting.executeScript({ target: { tabId, frameIds: virgin }, files: CONTENT_FILES });
+    return { ok: true, injectedFrames: virgin.length };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+function manifestContentMatches() {
+  const scripts = (chrome.runtime.getManifest().content_scripts || []);
+  const out = [];
+  scripts.forEach((s) => (s.matches || []).forEach((m) => out.push(m)));
+  return out;
+}
+
+function isCoveredByManifest(origin) {
+  // The API endpoints are host permissions so fetch works. They are never
+  // places to inject a content script.
+  if (/^https:\/\/(api\.|openrouter\.|\*\.modal\.run)/.test(origin)) return true;
+
+  const matches = manifestContentMatches();
+  if (matches.indexOf(origin) !== -1) return true;
+
+  // Equality is not enough. "*://*.wd1.myworkdayjobs.com/*" is a different
+  // string from "*://*.myworkdayjobs.com/*" and is entirely inside it, so
+  // registering it put a second content script into every wd1 Workday tenant.
+  // Test whether a representative URL for this pattern is already matched.
+  const m = /^(\*|https?):\/\/(\*\.)?([^/*]+)(\/.*)?$/.exec(origin);
+  if (!m) return false;
+  const probe = 'https://' + m[3] + '/';
+  return matches.some((pattern) => matchesPattern(pattern, probe));
+}
+
 async function syncUserEnabledSites() {
   const granted = await new Promise((resolve) =>
     chrome.permissions.getAll((p) => resolve((p && p.origins) || [])));
-  const patterns = granted.filter((o) => o !== '<all_urls>');
+  const patterns = granted
+    .filter((o) => o !== '<all_urls>')
+    .filter((o) => !isCoveredByManifest(o));
 
   const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [DYNAMIC_ID] })
     .catch(() => []);
@@ -446,7 +518,7 @@ async function syncUserEnabledSites() {
     if (existing.length) await chrome.scripting.updateContentScripts([spec]);
     else await chrome.scripting.registerContentScripts([spec]);
   } catch (e) {
-    // A pattern the manifest already covers is rejected; nothing to do.
+    // Nothing actionable: a pattern already covered statically is rejected.
   }
   return patterns.length;
 }
@@ -462,4 +534,10 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-self.NurseApplyDebug = { callAnthropic, extractJson, mapFieldsWithModel, frameAggregates };
+self.NurseApplyDebug = {
+  callAnthropic, extractJson, mapFieldsWithModel, frameAggregates,
+  // Exposed so the harness can check the injection guards directly rather
+  // than inferring them from behaviour.
+  isCoveredByManifest, manifestContentMatches, matchesPattern, syncUserEnabledSites,
+  injectIntoTab
+};

@@ -280,6 +280,59 @@ console.log('\nA hospital careers page on a domain nobody matched:');
   await page.close();
 }
 
+/* ------------------------------- pressing the popup button on a live site -- */
+console.log('\nPressing the popup button on a site the manifest already covers:');
+{
+  const page = await ctx.newPage();
+  await page.goto('https://acme.myworkdayjobs.com/en-US/careers/job/apply');
+  await page.waitForTimeout(1500);
+
+  const before = await page.evaluate(() => document.querySelectorAll('#nurseapply-hud-host').length);
+  const worker = ctx.serviceWorkers()[0];
+
+  // Exactly what the popup does when nothing has answered yet.
+  const res = await worker.evaluate(async (tabUrl) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url && t.url.indexOf(tabUrl) === 0);
+    const injected = await self.NurseApplyDebug.injectIntoTab(tab.id);
+    const registered = await chrome.scripting.getRegisteredContentScripts().catch(() => []);
+    return { injected, registered: registered.length, tabId: tab.id };
+  }, 'https://acme.myworkdayjobs.com');
+
+  await page.waitForTimeout(1200);
+  const after = await page.evaluate(() => document.querySelectorAll('#nurseapply-hud-host').length);
+
+  const guard = await worker.evaluate(() => {
+    const d = self.NurseApplyDebug;
+    return {
+      // The exact string from the manifest.
+      exact: d.isCoveredByManifest('*://*.myworkdayjobs.com/*'),
+      // A narrower pattern entirely inside it. This is the one that slipped
+      // through and put a second content script on wd1 Workday tenants.
+      narrower: d.isCoveredByManifest('*://*.wd1.myworkdayjobs.com/*'),
+      // An API endpoint, which is a host permission for fetch and must never
+      // become a place to inject.
+      apiHost: d.isCoveredByManifest('https://api.moonshot.ai/*'),
+      modal: d.isCoveredByManifest('https://*.modal.run/*'),
+      // A genuine user-enabled site must still be registered.
+      userSite: d.isCoveredByManifest('https://careers.riverbendhealth.org/*')
+    };
+  });
+  failures += guard.exact && guard.narrower && guard.apiHost && guard.modal && !guard.userSite
+    ? ok('the injection guard covers exact, narrower and API patterns while still allowing a user-enabled site')
+    : bad('injection guard is wrong: ' + JSON.stringify(guard));
+  failures += res.injected && res.injected.alreadyRunning
+    ? ok('injection is refused because the content script is already running')
+    : bad('it injected anyway: ' + JSON.stringify(res.injected));
+  failures += after === before && after === 1
+    ? ok(`still exactly one pill on the page (was ${before}, now ${after})`)
+    : bad(`pill count went from ${before} to ${after}`);
+  failures += res.registered === 0
+    ? ok('no dynamic content script was registered over the manifest ones')
+    : bad(res.registered + ' dynamic content scripts registered, duplicating the static ones');
+  await page.close();
+}
+
 await ctx.close();
 console.log(failures === 0 ? '\nAll checks passed.\n' : `\n${failures} check(s) failed.\n`);
 process.exit(failures === 0 ? 0 : 1);
