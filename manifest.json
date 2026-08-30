@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NurseApply",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Autofills nursing job applications on hospital hiring portals. It fills. You review and submit.",
   "minimum_chrome_version": "116",
   "icons": {

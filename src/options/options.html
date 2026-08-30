@@ -109,6 +109,9 @@
     <summary>Documents <span class="hint">resume file and cover letter template</span><span class="chev">›</span></summary>
     <div class="panel-body">
       <div class="grid" id="sec-documents"></div>
+      <p class="note">Resume import reads PDF, DOCX and TXT on this machine. It pulls out your
+        licenses, certifications, schools, roles, units, ratios, bed counts, trauma levels and EMR
+        systems, and tells you what it could not work out rather than leaving a silent blank.</p>
       <p class="note">Cover letter tokens: <code>{{hospital}}</code>, <code>{{role}}</code>,
         <code>{{unit}}</code>, <code>{{certifications}}</code>, <code>{{emr_experience}}</code>.
         NurseApply drafts it into the drawer. It never inserts it without you clicking.</p>
@@ -118,6 +121,9 @@
   <details class="panel">
     <summary>Settings <span class="hint">API key, model fallback, backup</span><span class="chev">›</span></summary>
     <div class="panel-body">
+      <p class="note">A key is optional. Resume import and form filling both work without one:
+        resumes are read and parsed on this machine, and form fields are matched by platform
+        adapters and nursing-specific rules.</p>
       <p class="note">The model fallback is off by default. When it is on, NurseApply sends
         <strong>only the structure of the form</strong>: control type, the visible label, and the
         options a dropdown offers. Your name, license number, immunization dates and every other
@@ -147,6 +153,8 @@
 <script src="../schema/profile.js"></script>
 <script src="../lib/storage.js"></script>
 <script src="../lib/docx.js"></script>
+<script src="../lib/pdftext.js"></script>
+<script src="../lib/resumeParse.js"></script>
 <script src="options.js"></script>
 </body>
 </html>

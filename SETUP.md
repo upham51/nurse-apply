@@ -30,20 +30,23 @@ to NurseApply. The popup is how you trigger a fill when the floating pill is hid
 
 Two ways.
 
-**Import a resume.** Click **Import resume** on the options page. This is the one feature that
-calls a model, so it needs an Anthropic API key. If you have not saved one, the button asks for it
-and tests it before going any further, and offers **Just attach a file instead** if you would rather
-not use a key at all. Attaching still lets NurseApply upload the resume to a portal's file input;
-it just will not populate the profile for you.
+**Import a resume.** Click **Import resume** and drop in a PDF, DOCX or TXT. This runs entirely
+on your machine: no API key, no upload, no network. It pulls out your name, contact details,
+licenses with numbers and expiration dates, certifications with issuing bodies, schools and
+degrees, and every role with its unit, bed count, nurse-to-patient ratio, trauma level and
+bullets. When it finishes it tells you what it found and, more usefully, what it could not work
+out, so a gap is visible rather than silently blank.
 
-The API key saves the moment you type it. It does not wait for **Save profile**, which only
-covers profile fields. Drop in a PDF, DOCX or TXT. PDFs go to the
-API as a document so two-column layouts survive; DOCX is unzipped and read locally. A PDF over
-4 MB is still parsed, but the file itself is not kept, because `chrome.storage.local` has a quota
-and a failed write would take the rest of the profile with it. The
-model returns a structured profile which populates the form. Nothing is saved until you
-press **Save profile**, so read every section first. It will not invent a license number,
-an expiration date, an NPI or an immunization record that is not written in the document.
+It will not invent anything. A license number, an expiration date or an NPI that is not written
+in the document stays empty, and an NPI that fails its check digit is rejected with a note
+saying why.
+
+If you have saved an Anthropic API key, a **Second pass with the model** button appears after
+the local parse. It writes only into fields the parser left blank and never overwrites
+something already filled. It is optional, and everything works without it.
+
+A scanned PDF with no text layer will come out empty. NurseApply does not do OCR, so retype or
+export a text-based PDF.
 
 **Type it in.** Work down the accordions. The sections that pay for themselves fastest are
 Licensure, Certifications and Work experience, because that is where hospital portals ask

@@ -36,6 +36,9 @@ manifest.json                MV3, explicit host permissions, all_frames content 
 src/schema/profile.js        the nurse profile shape, validation, date and state formatting
 src/lib/storage.js           chrome.storage.local wrapper, tracker, mapping cache, backup
 src/lib/docx.js              .docx text extraction using the browser's own DecompressionStream
+src/lib/pdftext.js           PDF text extraction with the vendored pdf.js, layout aware
+src/lib/resumeParse.js       deterministic nursing resume parser, no model involved
+src/vendor/                  pdf.js, vendored because MV3 forbids remote script
 src/content/domUtils.js      native-setter writes, ARIA combobox driver, field collection
 src/content/knockout.js      the guard described above
 src/content/heuristics.js    Tier 2: ~90 label rules covering nursing-specific fields
@@ -59,6 +62,26 @@ re-render discards it. Every write in `domUtils.js` calls the native setter take
 `keydown`, `input`, `change`, `keyup` and `blur`. `tools/test-fill.mjs` proves this
 against a simulated controlled React input, and includes a negative control: a naive
 assignment on an identically guarded field, which the simulation must discard.
+
+### Resume import without a model
+
+Resume parsing runs entirely on your machine and needs no API key. It works because most of
+what a nursing application asks for comes from closed vocabularies rather than free prose:
+certifications are an eight-item list, EMR systems are an eight-item list, and degrees, units,
+license types, facility types and trauma levels are all enumerated. Dates, phone numbers, ZIP
+codes, license numbers, bed counts and nurse-to-patient ratios have fixed shapes. That is a
+matching problem, not a comprehension problem.
+
+`src/lib/resumeParse.js` handles it: section detection, then per-domain extractors for
+identity, licensure, certifications, education, employment and skills. The genuinely ambiguous
+part is the employment block, deciding which line is the employer and which is the job title.
+That uses scored keyword lists, and when the two scores are close the parser says so in its
+report rather than picking silently. It never invents a license number, an expiration date or
+an NPI that is not written in the document, and an NPI that fails its check digit is rejected
+with a reason.
+
+A model is available as an optional second pass that writes only into fields the local parser
+left blank. It is never on the critical path.
 
 ### Three tiers of mapping
 
@@ -91,7 +114,7 @@ unpacked", pick this folder, then fill in your profile.
 
 ```
 npm run check    # syntax, manifest integrity, safety invariants
-npm test         # headless fill harness plus the options-page harness
+npm test         # resume parser, fill harness, options page, and a real PDF end to end
 npm run package  # dist/nurseapply-<version>.zip
 ```
 

@@ -441,193 +441,216 @@
 
   const MAX_STORED_RESUME_BYTES = 4 * 1024 * 1024;
 
-  async function openResumeImport() {
-    // Pick up a key typed a moment ago but not yet flushed.
-    await persistSettings();
-
-    if (!settings.apiKey) {
-      openKeyFirst();
-      return;
-    }
-
+  /**
+   * Resume import runs entirely on this machine by default. pdf.js pulls the
+   * text out of a PDF, a small unzip reads DOCX, and resumeParse.js turns that
+   * text into profile fields using the closed vocabularies nursing gives us:
+   * an eight-item certification list, an eight-item EMR list, enumerated
+   * degrees, units, license types and trauma levels, plus the fixed shapes of
+   * dates, phone numbers, ZIPs and nurse-to-patient ratios.
+   *
+   * A model is only ever a second pass, offered afterwards, for the parts that
+   * are genuinely ambiguous rather than merely unstructured.
+   */
+  function openResumeImport() {
     const zone = el('div', { class: 'dropzone', text: 'Drop a PDF, DOCX or TXT resume here, or click to choose' });
     const input = el('input', { type: 'file', accept: '.pdf,.docx,.txt,.md', class: 'hidden' });
     const statusNode = el('p', { class: 'note', text: '' });
+    const resultNode = el('div', {});
+
+    const pick = (file) => handleResume(file, { statusNode, resultNode, ui });
 
     zone.addEventListener('click', () => input.click());
     zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('over'));
     zone.addEventListener('drop', (e) => {
       e.preventDefault(); zone.classList.remove('over');
-      if (e.dataTransfer.files[0]) handleResume(e.dataTransfer.files[0], statusNode, ui, { parse: true });
+      if (e.dataTransfer.files[0]) pick(e.dataTransfer.files[0]);
     });
-    input.addEventListener('change', () => {
-      if (input.files[0]) handleResume(input.files[0], statusNode, ui, { parse: true });
-    });
-
-    const attachOnly = el('button', {
-      class: 'ghost', text: 'Attach without parsing',
-      onclick: () => {
-        input.onchange = null;
-        const plain = el('input', { type: 'file', accept: '.pdf,.docx,.txt,.md', class: 'hidden' });
-        plain.addEventListener('change', () => {
-          if (plain.files[0]) handleResume(plain.files[0], statusNode, ui, { parse: false });
-        });
-        document.body.appendChild(plain);
-        plain.click();
-        setTimeout(() => plain.remove(), 30000);
-      }
-    });
+    input.addEventListener('change', () => { if (input.files[0]) pick(input.files[0]); });
 
     const ui = modal(
       'Import resume',
-      'The file is read on this machine. A PDF goes to the Anthropic API as a document so a two-column ' +
-      'layout survives; DOCX and TXT are read locally and sent as text. The model fills the profile, you ' +
-      'check every field, and nothing is stored until you press Save profile.',
-      [zone, input, statusNode],
-      [attachOnly, el('button', { class: 'ghost', text: 'Close', onclick: () => ui.close() })]
+      'Read and parsed on this computer. No API key, no upload, no network. ' +
+      'Nothing is stored until you press Save profile, so read every section first.',
+      [zone, input, statusNode, resultNode],
+      [el('button', { class: 'ghost', text: 'Close', onclick: () => ui.close() })]
     );
   }
 
-  /**
-   * Resume parsing needs a key. Rather than fail after the user has already
-   * picked a file, ask for the key here and continue in the same modal.
-   */
-  function openKeyFirst() {
-    const keyInput = el('input', { type: 'password', placeholder: 'sk-ant-…' });
-    keyInput.style.marginBottom = '4px';
-    const statusNode = el('p', { class: 'note', text: '' });
-
-    const saveAndGo = el('button', {
-      class: 'primary', text: 'Save key and continue',
-      onclick: async () => {
-        const value = keyInput.value.trim();
-        if (!value) { statusNode.textContent = 'Paste a key first.'; return; }
-        settings.apiKey = value;
-        statusNode.textContent = 'Checking the key…';
-        await persistSettings();
-        const res = await sendMessage({ type: 'llm:test' });
-        if (!res || !res.ok) {
-          statusNode.textContent = 'That key did not work: ' + ((res && res.error) || 'no response');
-          return;
-        }
-        renderSettings();
-        ui.close();
-        openResumeImport();
-      }
-    });
-
-    const skip = el('button', {
-      class: 'ghost', text: 'Just attach a file instead',
-      onclick: () => {
-        const plain = el('input', { type: 'file', accept: '.pdf,.docx,.txt,.md', class: 'hidden' });
-        plain.addEventListener('change', () => {
-          if (plain.files[0]) handleResume(plain.files[0], statusNode, ui, { parse: false });
-        });
-        document.body.appendChild(plain);
-        plain.click();
-        setTimeout(() => plain.remove(), 30000);
-      }
-    });
-
-    const ui = modal(
-      'Add an Anthropic API key',
-      'Parsing a resume into the profile is the one feature that calls a model, so it needs your own key ' +
-      'from console.anthropic.com. It is stored on this machine only and is left out of profile exports. ' +
-      'If you would rather not use one, you can still attach the file so NurseApply can upload it to ' +
-      'portals, and type the profile in yourself.',
-      [el('label', { class: 'field' },
-        [el('span', { class: 'lab', text: 'Anthropic API key' }), keyInput]), statusNode],
-      [saveAndGo, skip, el('button', { class: 'ghost', text: 'Close', onclick: () => ui.close() })]
-    );
+  async function extractResumeText(file, buf, statusNode) {
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+    const isDocx = /\.docx$/i.test(file.name);
+    if (isPdf) {
+      statusNode.textContent = 'Extracting text from the PDF on this machine…';
+      return { text: await NA.pdftext.extractText(buf), isPdf: true };
+    }
+    if (isDocx) return { text: await NA.docx.extractText(buf), isPdf: false };
+    return { text: new TextDecoder().decode(buf), isPdf: false };
   }
 
-  async function handleResume(file, statusNode, ui, opts) {
-    const parse = !opts || opts.parse !== false;
-    statusNode.textContent = `Reading ${file.name}…`;
+  async function handleResume(file, ctx) {
+    const { statusNode, resultNode, ui } = ctx;
+    resultNode.textContent = '';
+    statusNode.textContent = 'Reading ' + file.name + '…';
     try {
       const buf = await file.arrayBuffer();
-      const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
-      const isDocx = /\.docx$/i.test(file.name);
+      const { text, isPdf } = await extractResumeText(file, buf, statusNode);
 
-      const msg = { type: 'llm:parseResume' };
-      let text = '';
+      profile.documents.resumeFileName = file.name;
+      if (text) profile.documents.resumeText = text;
 
       if (isPdf) {
-        const base64 = bytesToBase64(new Uint8Array(buf));
-        msg.base64 = base64;
-        msg.mediaType = 'application/pdf';
         // Keeping the bytes is what lets NurseApply attach the resume to a
-        // portal's file input later. Oversized files are read but not stored,
-        // because chrome.storage.local has a quota and a failed write would
-        // take the whole profile down with it.
+        // portal file input later. chrome.storage.local has a quota, and a
+        // failed write would take the rest of the profile with it.
         if (buf.byteLength <= MAX_STORED_RESUME_BYTES) {
-          profile.documents.resumeBase64 = base64;
+          profile.documents.resumeBase64 = bytesToBase64(new Uint8Array(buf));
           profile.documents.resumeMimeType = 'application/pdf';
         } else {
           profile.documents.resumeBase64 = '';
           profile.documents.resumeMimeType = '';
         }
-      } else if (isDocx) {
-        text = await NA.docx.extractText(buf);
-        msg.text = text;
-      } else {
-        text = new TextDecoder().decode(buf);
-        msg.text = text;
       }
 
-      profile.documents.resumeFileName = file.name;
-      if (text) profile.documents.resumeText = text;
-
-      if (!parse) {
-        render();
-        markDirty();
-        const tooBig = isPdf && buf.byteLength > MAX_STORED_RESUME_BYTES;
-        statusNode.textContent = tooBig
-          ? `${file.name} is over 4 MB, so the file itself was not stored. The name is on record. Press Save profile.`
-          : `${file.name} attached. Press Save profile.`;
-        setTimeout(() => ui.close(), 1600);
-        return;
-      }
-
-      statusNode.textContent = 'Asking the model to structure it. This takes a few seconds…';
-      const res = await sendMessage(msg);
-      if (!res || !res.ok) throw new Error((res && res.error) || 'No response from the service worker.');
-
-      applyParsed(res.parsed);
+      statusNode.textContent = 'Parsing…';
+      const parsed = NA.resumeParse.parse(text);
+      applyParsed(parsed.profile);
       render();
       markDirty();
-      statusNode.textContent = 'Imported. Check every section, then press Save profile.';
-      setTimeout(() => ui.close(), 1400);
+
+      statusNode.textContent = summarise(parsed.stats, file.name, isPdf && buf.byteLength > MAX_STORED_RESUME_BYTES);
+      resultNode.appendChild(reportList(parsed.report));
+      resultNode.appendChild(refineRow(text, statusNode, resultNode));
     } catch (e) {
       statusNode.textContent = 'Could not import: ' + e.message;
     }
+  }
+
+  function summarise(stats, fileName, tooBigToStore) {
+    if (!stats || !stats.lines) return 'Nothing readable came out of ' + fileName + '.';
+    const bits = [];
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
+    if (stats.experience) bits.push(plural(stats.experience, 'role'));
+    if (stats.licenses) bits.push(plural(stats.licenses, 'license'));
+    if (stats.certifications) bits.push(plural(stats.certifications, 'certification'));
+    if (stats.education) bits.push(plural(stats.education, 'school'));
+    if (stats.emrSystems) bits.push(plural(stats.emrSystems, 'EMR system'));
+    if (stats.procedures) bits.push(plural(stats.procedures, 'skill'));
+    const head = bits.length ? 'Found ' + bits.join(', ') + '.' : 'Read the file but recognised no profile fields.';
+    return head + (tooBigToStore
+      ? ' The PDF is over 4 MB so the file itself was not stored, only its text.'
+      : ' Check every section, then press Save profile.');
+  }
+
+  function reportList(report) {
+    const wrap = el('div', {});
+    if (!report || !report.length) return wrap;
+    const ul = el('ul', { class: 'issues' });
+    report.slice(0, 12).forEach((r) => {
+      ul.appendChild(el('li', { class: r.level === 'warn' ? 'err' : '', text: r.msg }));
+    });
+    wrap.appendChild(ul);
+    return wrap;
+  }
+
+  /**
+   * The optional second pass. Everything above already ran; this only exists
+   * for the parts a rule cannot settle, and it is never on the critical path.
+   */
+  function refineRow(text, statusNode, resultNode) {
+    const row = el('div', { class: 'row-actions', style: 'margin-top:12px' });
+
+    if (!settings.apiKey) {
+      row.appendChild(el('p', { class: 'note', style: 'margin:0',
+        text: 'Anything the rules could not work out is listed above. Fill those in by hand, or add an Anthropic API key in Settings and a second pass can attempt them.' }));
+      return row;
+    }
+
+    const btn = el('button', {
+      class: 'ghost', text: 'Second pass with the model',
+      onclick: async () => {
+        btn.disabled = true;
+        statusNode.textContent = 'Asking the model to fill the gaps. This takes a few seconds…';
+        const res = await sendMessage({ type: 'llm:parseResume', text });
+        if (!res || !res.ok) {
+          statusNode.textContent = 'Second pass failed: ' + ((res && res.error) || 'no response');
+          btn.disabled = false;
+          return;
+        }
+        applyParsed(res.parsed, { onlyFillBlanks: true });
+        render();
+        markDirty();
+        statusNode.textContent = 'Second pass applied to the blanks only. Existing values were left alone. Check it, then Save profile.';
+        resultNode.textContent = '';
+      }
+    });
+    row.appendChild(btn);
+    row.appendChild(el('span', { class: 'note', style: 'margin:0;flex:1',
+      text: 'Optional. Sends the resume text to Anthropic with your key, and only writes into fields the local parser left blank.' }));
+    return row;
   }
 
   /**
    * Merges parsed output in without destroying anything the user already typed.
    * Arrays are replaced only when the model actually found entries.
    */
-  function applyParsed(parsed) {
+  function applyParsed(parsed, opts) {
     if (!parsed || typeof parsed !== 'object') return;
-    ['identity', 'nursingCredentials', 'clinicalSkills'].forEach((k) => {
-      if (parsed[k]) S.mergeInto(profile[k], parsed[k]);
+    const onlyBlanks = !!(opts && opts.onlyFillBlanks);
+
+    ['identity', 'nursingCredentials', 'clinicalSkills', 'compliance', 'preferences'].forEach((k) => {
+      if (!parsed[k]) return;
+      if (onlyBlanks) fillBlanksOnly(profile[k], parsed[k]);
+      else S.mergeInto(profile[k], parsed[k]);
     });
-    ['licenses', 'certifications', 'education', 'experience'].forEach((k) => {
-      if (Array.isArray(parsed[k]) && parsed[k].length) {
-        const blank = {
-          licenses: S.blankLicense, certifications: S.blankCertification,
-          education: S.blankEducation, experience: S.blankExperience
-        }[k];
+
+    ['licenses', 'certifications', 'education', 'experience', 'references'].forEach((k) => {
+      if (!Array.isArray(parsed[k]) || !parsed[k].length) return;
+      const blank = {
+        licenses: S.blankLicense, certifications: S.blankCertification,
+        education: S.blankEducation, experience: S.blankExperience,
+        references: S.blankReference
+      }[k];
+      if (onlyBlanks) {
+        // Never renumber or reorder what the local parser already built. Only
+        // top up empty fields in matching rows, and append genuinely new ones.
+        parsed[k].forEach((row, i) => {
+          if (profile[k][i]) fillBlanksOnly(profile[k][i], row);
+          else profile[k].push(S.mergeInto(blank(), row));
+        });
+      } else {
         profile[k] = parsed[k].map((row) => S.mergeInto(blank(), row));
       }
     });
+
     if (parsed.identity && parsed.identity.phone) {
-      profile.identity.phone = S.normalizePhone(parsed.identity.phone);
+      profile.identity.phone = S.normalizePhone(profile.identity.phone || parsed.identity.phone);
     }
     if (profile.licenses.length && !profile.licenses.some((l) => l.isPrimaryState)) {
       profile.licenses[0].isPrimaryState = true;
     }
+  }
+
+  /** Writes only where the target is empty. Booleans are left alone entirely. */
+  function fillBlanksOnly(target, source) {
+    if (!target || !source) return;
+    Object.keys(source).forEach((k) => {
+      const incoming = source[k];
+      const current = target[k];
+      if (incoming === undefined || incoming === null || incoming === '') return;
+      if (Array.isArray(incoming)) {
+        if (!Array.isArray(current) || current.length === 0) target[k] = incoming.slice();
+        return;
+      }
+      if (incoming && typeof incoming === 'object') {
+        target[k] = target[k] && typeof target[k] === 'object' ? target[k] : {};
+        fillBlanksOnly(target[k], incoming);
+        return;
+      }
+      if (typeof incoming === 'boolean') return;
+      if (current === '' || current === undefined || current === null) target[k] = incoming;
+    });
   }
 
   function bytesToBase64(bytes) {

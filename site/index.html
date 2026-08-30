@@ -138,8 +138,9 @@ footer p{color:var(--faint);font-size:13.5px}
   <div class="mark"><img src="icons/icon128.png" alt=""></div>
   <h1>Apply to nursing jobs<br>without retyping <em>your whole career</em>.</h1>
   <p class="lede">NurseApply is a Chrome extension that fills hospital application portals from a
-  profile you build once: licenses, certifications, trauma level, bed count, typical ratio, EMR systems,
-  immunization dates. <strong>It fills. You review and submit.</strong></p>
+  profile it builds from your resume, on your machine, with no model and no account: licenses,
+  certifications, trauma level, bed count, typical ratio, EMR systems, immunization dates.
+  <strong>It fills. You review and submit.</strong></p>
   <div class="cta">
     <a class="btn primary" href="nurseapply.zip" download>Download the extension</a>
     <a class="btn" href="https://github.com/upham51/nurse-apply">Source on GitHub</a>
@@ -167,6 +168,26 @@ footer p{color:var(--faint);font-size:13.5px}
   </ol>
   <p style="margin-top:26px">It also never clicks Submit, never solves a CAPTCHA, never advances a wizard on
   its own, and never overwrites a field you have already typed into.</p>
+</section>
+
+<section>
+  <h2>Resume import, with no model involved</h2>
+  <p class="sub">No API key, no upload, no network.</p>
+  <p>Drop in a PDF, DOCX or TXT and it fills most of the profile on your own machine. This works
+  without a model because most of what a nursing application asks for is drawn from closed
+  vocabularies rather than free prose. Certifications are an eight-item list. EMR systems are an
+  eight-item list. Degrees, units, license types, facility types and trauma levels are all
+  enumerated. Dates, phone numbers, ZIP codes, license numbers, bed counts and nurse-to-patient
+  ratios have fixed shapes. That is a matching problem, not a comprehension problem.</p>
+  <p>The one genuinely ambiguous part is the employment block: which line is the employer and
+  which is the job title. That is scored, and when the two are close the parser says so in its
+  report instead of picking silently. It never invents a license number, an expiration date or an
+  NPI that is not written in the document, and an NPI that fails its check digit is rejected with
+  the reason shown. When it finishes it tells you what it could not work out, so a gap is visible
+  rather than a silent blank.</p>
+  <p>A model is available as an optional second pass that writes only into fields the parser left
+  blank. It is never on the critical path. <strong>A scanned PDF with no text layer will come out
+  empty</strong>, because there is no OCR here.</p>
 </section>
 
 <section>
@@ -216,7 +237,7 @@ footer p{color:var(--faint);font-size:13.5px}
     <li>Download the zip above and unzip it. The folder you want is the one containing <code>manifest.json</code>.</li>
     <li>Open <code>chrome://extensions</code> and turn on <strong>Developer mode</strong>, top right.</li>
     <li>Click <strong>Load unpacked</strong> and pick that folder.</li>
-    <li>The profile page opens automatically. Fill in licensure, certifications and work experience first, or import a resume if you have added an Anthropic key.</li>
+    <li>The profile page opens automatically. <strong>Import a resume</strong> to fill most of it, or type in licensure, certifications and work experience by hand.</li>
     <li>Open an application on a supported portal and press <strong>Fill step</strong> on the pill in the bottom right.</li>
   </ol>
 </section>
@@ -228,11 +249,13 @@ footer p{color:var(--faint);font-size:13.5px}
 cd nurse-apply &amp;&amp; npm install
 
 npm run check      # syntax, manifest integrity, safety invariants
-npm test           # headless fill against a synthetic ATS form
-npm run package    # dist/nurseapply-1.0.0.zip</code></pre>
+npm test           # resume parser, fill harness, options page, real PDF
+npm run package    # dist/nurseapply-1.1.0.zip</code></pre>
   <p>The test suite includes a negative control: a naive <code>element.value =</code> assignment on an
   identically guarded input, which the simulated React component must discard. If that control ever passes,
-  the harness is not reproducing the failure mode and the positive results mean nothing.</p>
+  the harness is not reproducing the failure mode and the positive results mean nothing. The PDF test
+  runs behind a request interceptor that fails if anything leaves the local origin, which is what makes
+  "no network" a checked claim rather than an assertion.</p>
 </section>
 
 <footer>

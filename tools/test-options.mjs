@@ -89,19 +89,20 @@ failures += stored === 'sk-ant-test-key-value'
   ? pass('key reached chrome.storage.local without pressing Save profile')
   : fail(`key was not persisted; storage holds ${JSON.stringify(stored)}`);
 
-console.log('\nResume import with a key present:');
+console.log('\nResume import:');
 await page.click('#btn-import-resume');
 await page.waitForSelector('.modal h2');
 let heading = await page.$eval('.modal h2', (n) => n.textContent);
+let bodyText = await page.$eval('.modal', (n) => n.textContent);
 failures += heading === 'Import resume'
-  ? pass('goes straight to the drop zone when a key is saved')
+  ? pass('opens the drop zone')
   : fail(`expected the import modal, got ${JSON.stringify(heading)}`);
+failures += /No API key, no upload, no network/i.test(bodyText)
+  ? pass('states that parsing is local')
+  : fail('import modal does not say parsing is local');
 await page.click('.modal .row-actions button:last-child');
 
-console.log('\nResume import with no key:');
-// Clear it the way a user would: select the field and delete, so the input
-// event actually fires. Blanking it with .value = '' would skip the handler
-// and silently leave the old key in memory.
+console.log('\nResume import with no key at all:');
 await page.click('#na-api-key');
 await page.keyboard.press('Control+A');
 await page.keyboard.press('Delete');
@@ -111,16 +112,33 @@ const clearedKey = await page.evaluate(() => (window.__store.na_settings || {}).
 failures += clearedKey === ''
   ? pass('clearing the field clears the stored key too')
   : fail(`stored key survived clearing: ${JSON.stringify(clearedKey)}`);
+
 await page.click('#btn-import-resume');
 await page.waitForSelector('.modal h2');
 heading = await page.$eval('.modal h2', (n) => n.textContent);
-const bodyText = await page.$eval('.modal', (n) => n.textContent);
-failures += heading === 'Add an Anthropic API key'
-  ? pass('asks for a key up front instead of failing after a file is chosen')
-  : fail(`expected the key prompt, got ${JSON.stringify(heading)}`);
-failures += /attach a file instead/i.test(bodyText)
-  ? pass('offers the attach-without-parsing path')
-  : fail('no attach-only escape hatch offered');
+failures += heading === 'Import resume'
+  ? pass('still opens the drop zone with no key, because parsing needs none')
+  : fail(`expected the import modal, got ${JSON.stringify(heading)}`);
+await page.click('.modal .row-actions button:last-child');
+
+console.log('\nLocal parser is wired into the page:');
+const parserWired = await page.evaluate(() => !!(window.NA && window.NA.resumeParse && window.NA.pdftext));
+failures += parserWired
+  ? pass('resumeParse and pdftext are loaded on the options page')
+  : fail('local parsing modules are not loaded');
+const localResult = await page.evaluate(() => {
+  const r = window.NA.resumeParse.parse(
+    'Pat Nguyen RN\npat@example.com\n503-555-0100\nPortland, OR 97209\n\n' +
+    'LICENSURE\nOregon RN License #RN123456 exp 01/31/2028\n\n' +
+    'CERTIFICATIONS\nBLS AHA exp 02/2027\n\n' +
+    'EXPERIENCE\nSome Hospital\nStaff Nurse, ICU\n2019 - Present\n* 20-bed ICU, ratio 1:2\n'
+  );
+  return { licenses: r.profile.licenses.length, certs: r.profile.certifications.length,
+           roles: r.profile.experience.length, unit: (r.profile.experience[0] || {}).unit };
+});
+failures += (localResult.licenses === 1 && localResult.certs === 1 && localResult.roles === 1 && localResult.unit === 'ICU')
+  ? pass('parses a resume in-page with no network: ' + JSON.stringify(localResult))
+  : fail('in-page parse returned ' + JSON.stringify(localResult));
 
 console.log('\nValidation surface:');
 const issues = await page.$$eval('#issues li', (ns) => ns.map((n) => n.textContent));

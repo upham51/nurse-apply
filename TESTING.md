@@ -23,6 +23,18 @@ field stays blank, that the work authorization question is answered from the pro
 that a "why do you want to work here" prompt is drafted into the drawer rather than written
 into the form.
 
+`npm run test:resume` parses three resumes written in different styles (single column with
+all-caps headers, pipe-separated headers with the date on its own line, and a terse layout with
+the employer above the date and bare years) and asserts every extracted field. It also asserts
+the parser's refusals: no license, certification or NPI is invented when the document does not
+state one, an NPI failing its check digit is rejected with a reason, and an empty extraction
+explains itself rather than returning silence.
+
+`npm run test:pdf` renders one of those resumes to a real PDF, extracts it with the vendored
+pdf.js in a real browser, and parses the result. The page is under a request interceptor that
+fails the test if anything leaves the local origin, which is what makes "no network" a checked
+claim rather than an assertion.
+
 `npm run test:options` loads the options page against an in-memory `chrome.storage.local` shim and
 checks the behaviours that only appear in a browser: that the API key reaches storage the moment it
 is typed rather than waiting for Save profile, that clearing the field clears the stored key, that
