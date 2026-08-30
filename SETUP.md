@@ -127,6 +127,14 @@ removed before the request is built, so the model is not even shown them.
 Your key is kept on this machine, is used only from the extension's background
 page so no website can read it, and is left out of profile exports.
 
+## Running the model yourself
+
+If you would rather not pay a vendor per token, `modal/README.md` deploys an
+open-weights model on your own Modal account and hands you an
+OpenAI-compatible URL to paste into Settings. It scales to zero, so an idle
+week costs nothing, and the trade is a minute or two of cold start on the
+first request after a quiet period.
+
 ## When a careers page does nothing
 
 NurseApply only runs where it has been allowed to. It comes switched on for the big platforms
