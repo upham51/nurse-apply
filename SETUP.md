@@ -9,7 +9,7 @@ git clone https://github.com/upham51/nurse-apply.git
 cd nurse-apply
 ```
 
-or download the zip from the releases page and unzip it. If you downloaded the packaged
+or download the zip from https://nurse-apply.pages.dev and unzip it. If you downloaded the packaged
 zip, the folder you want is the one containing `manifest.json` directly.
 
 ## 2. Load it into Chrome

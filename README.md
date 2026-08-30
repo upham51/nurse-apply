@@ -1,5 +1,7 @@
 # NurseApply
 
+Install page: https://nurse-apply.pages.dev
+
 A Chrome extension (Manifest V3) that autofills nursing job applications on hospital
 hiring portals. No backend, no accounts, no telemetry. Everything lives in
 `chrome.storage.local` on the machine you installed it on.
