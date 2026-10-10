@@ -88,6 +88,13 @@ for (const f of files.filter((f) => f.endsWith('.html') && !f.includes('/tools/'
   const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]);
   for (const ref of refs) {
     if (/^(https?:|data:|#)/.test(ref)) continue;
+    // The install page links to the packaged zip. It is a build artifact
+    // (gitignored, produced by `npm run package`, copied in at deploy time),
+    // so it is legitimately absent from a fresh clone.
+    if (/\.zip$/.test(ref)) {
+      ok(`${f.replace(repo + '/', '')} links to ${ref}, a build artifact produced by npm run package`);
+      continue;
+    }
     if (!existsSync(resolve(dirname(f), ref))) {
       bad(`${f.replace(repo + '/', '')} references missing ${ref}`);
     }
