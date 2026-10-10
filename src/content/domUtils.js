@@ -315,11 +315,11 @@
     if (role === 'radiogroup') return 'radiogroup';
     if (role === 'listbox') return 'combobox';
     if (el.isContentEditable) return 'richtext';
-    if (t === 'button') {
+    if (tag === 'button') {
       // Only a button that sits inside a field wrapper is a picker. Next, Save
       // and Back are buttons too, and must never be touched.
       const wrap = el.closest('[data-automation-id^="formField-"]');
-      if (wrap && !/\b(next|back|save|submit|continue|cancel|delete|remove|add)\b/i
+      if (wrap && !/\b(next|back|save|submit|continue|cancel|delete|remove|add|files?|upload|browse)\b/i
         .test(cleanText(el.textContent))) return 'combobox';
     }
     return 'unknown';

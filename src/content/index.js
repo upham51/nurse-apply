@@ -136,6 +136,10 @@
     try {
       if (!profile && !(await loadState())) return null;
 
+      if (typeof adapter.prepare === 'function') {
+        try { await adapter.prepare(document, profile, settings); } catch (e) { /* fill what is there */ }
+      }
+
       const fields = NA.mapper.scan(adapter, document);
       if (!fields.length) return { filled: [], skipped: [], suggested: [], total: 0 };
 
@@ -281,7 +285,7 @@
     if (observer) observer.disconnect();
     observer = new MutationObserver(() => {
       clearTimeout(rescanTimer);
-      rescanTimer = setTimeout(async () => {
+      rescanTimer = setTimeout(async () => { try {
         const fields = NA.mapper.scan(adapter, document);
         const fp = NA.dom.fingerprintForm(fields);
 
@@ -306,7 +310,10 @@
         const shouldAuto = settings && (settings.autopilot ? settings.autoAdvance !== false
                                                            : settings.autoFillOnLoad);
         if (shouldAuto && fields.length) runFill();
-      }, 600);
+      } catch (err) {
+        try { console.error('[NurseApply] rescan failed', err); } catch (e) { /* ignore */ }
+        if (ownsHud) NA.hud.setState({ modelError: 'Could not read this step: ' + String((err && err.message) || err).slice(0, 60) });
+      } }, 600);
     });
     observer.observe(document.documentElement, {
       childList: true, subtree: true, attributes: false, characterData: false
@@ -319,10 +326,13 @@
     if (!msg || !msg.type) return;
 
     if (msg.type === 'na:fill') {
-      fillThisFrame().then((res) => {
-        finishFrame(res);
-        respond({ ok: true });
-      });
+      fillThisFrame().then((res) => finishFrame(res)).catch((err) => {
+        try { console.error('[NurseApply] fill failed', err); } catch (e) { /* ignore */ }
+        if (ownsHud) {
+          NA.hud.setState({ status: 'done',
+            modelError: 'Something went wrong reading this page: ' + String((err && err.message) || err).slice(0, 70) });
+        }
+      }).then(() => respond({ ok: true }));
       return true;
     }
 

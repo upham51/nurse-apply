@@ -180,6 +180,53 @@
     fieldOverride: overrides,
 
     /**
+     * Workday's experience page opens with no job or school entries, only Add
+     * buttons, so there is nothing to fill until entries exist. Press Add until
+     * there is one entry per item in the profile. Entries that are already on
+     * the page, blank or not, count toward that, so this never piles up extras.
+     */
+    async prepare(doc, profile) {
+      const SECTIONS = [
+        { re: /^workExperience-(\d+)--/, heading: /work\s+experience/i,
+          want: Math.min(((profile || {}).experience || []).length, 4) },
+        { re: /^education-(\d+)--/, heading: /^\s*education/i,
+          want: Math.min(((profile || {}).education || []).length, 2) }
+      ];
+      const page = doc.querySelector('[data-automation-id="applyFlowPage"]') || doc;
+      const count = (re) => {
+        const seen = new Set();
+        page.querySelectorAll('input[id], button[id], textarea[id]').forEach((el) => {
+          const m = re.exec(el.id);
+          if (m) seen.add(m[1]);
+        });
+        return seen.size;
+      };
+      const buttonFor = (heading) => {
+        const heads = Array.from(page.querySelectorAll('h1, h2, h3, h4, h5'))
+          .filter((h) => heading.test(h.textContent || ''));
+        if (!heads.length) return null;
+        const head = heads[0];
+        const buttons = Array.from(page.querySelectorAll('[data-automation-id="add-button"]'))
+          .filter((b) => head.compareDocumentPosition(b) & 4);   // follows the heading
+        return buttons[0] || null;
+      };
+
+      let pressed = 0;
+      for (const sec of SECTIONS) {
+        for (let guard = 0; guard < 6 && count(sec.re) < sec.want; guard++) {
+          const btn = buttonFor(sec.heading);
+          if (!btn) break;
+          const before = count(sec.re);
+          btn.click();
+          pressed++;
+          await B.waitFor(() => count(sec.re) > before, 2500, 100);
+          await NA.dom.sleep(150);
+        }
+      }
+      return pressed;
+    },
+
+    /**
      * Handles the split date widget before the generic writer gets a chance to
      * mangle it. Returning null hands the field back to the normal path.
      */
