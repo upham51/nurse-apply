@@ -17,7 +17,7 @@
   let shadow = null;
   let els = {};
   let state = {
-    filled: 0, total: 0, skipped: [], suggested: [],
+    filled: 0, total: 0, already: 0, skipped: [], suggested: [],
     status: 'idle', stepLabel: '', adapterLabel: '', modelError: '', drawerOpen: false
   };
   let handlers = {};
@@ -203,6 +203,8 @@ textarea {
       els.count.innerHTML = `Filling <b>${state.filled}</b>/${state.total}`;
     } else if (state.status === 'thinking') {
       els.count.textContent = 'Working out the rest…';
+    } else if (state.status === 'done' && state.filled === 0 && state.already > 0 && p === 0) {
+      els.count.innerHTML = `<b>${state.already}</b> already filled`;
     } else {
       els.count.innerHTML = `<b>${state.filled}</b>/${state.total} filled`;
     }

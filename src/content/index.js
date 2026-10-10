@@ -194,6 +194,7 @@
       frame: frameKey,
       filled: partial.filled.length,
       total: partial.total,
+      already: partial.already || 0,
       skipped: partial.skipped,
       suggested: partial.suggested
     };
@@ -204,14 +205,17 @@
   function mergeAggregate(res) {
     contributions.set(res.frame || frameKey, {
       filled: Number(res.filled) || 0,
-      total: Number(res.total) || 0
+      total: Number(res.total) || 0,
+      already: Number(res.already) || 0
     });
 
     let filled = 0;
     let total = 0;
-    contributions.forEach((c) => { filled += c.filled; total += c.total; });
+    let already = 0;
+    contributions.forEach((c) => { filled += c.filled; total += c.total; already += c.already || 0; });
     aggregate.filled = filled;
     aggregate.total = total;
+    aggregate.already = already;
 
     const seen = new Set(aggregate.skipped.map((s) => s.naId));
     (res.skipped || []).forEach((s) => { if (!seen.has(s.naId)) aggregate.skipped.push(s); });
@@ -221,6 +225,7 @@
     NA.hud.setState({
       filled: aggregate.filled,
       total: aggregate.total,
+      already: aggregate.already || 0,
       skipped: aggregate.skipped,
       suggested: aggregate.suggested
     });
@@ -237,7 +242,7 @@
     if (!res) return;
     const payload = {
       frame: frameKey,
-      filled: res.filled.length, total: res.total,
+      filled: res.filled.length, total: res.total, already: res.already || 0,
       skipped: res.skipped, suggested: res.suggested
     };
     if (!ownsHud) {

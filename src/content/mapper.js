@@ -216,7 +216,7 @@
    * open popups at once is how you end up selecting Alaska for everything.
    */
   async function execute(planItems, profile, settings, adapter, onProgress) {
-    const results = { filled: [], skipped: [], suggested: [], total: planItems.length };
+    const results = { filled: [], skipped: [], suggested: [], total: planItems.length, already: 0 };
     const comboOpts = (adapter && adapter.comboboxOptions) || {};
 
     for (let i = 0; i < planItems.length; i++) {
@@ -229,6 +229,7 @@
         continue;
       }
       if (item.action === 'skip' || item.action === 'unresolved') {
+        if (item.silent) results.already++;
         if (!item.silent) {
           results.skipped.push(describe(item));
           if (item.reason === 'knockout' || item.reason === 'no-profile-answer') {
