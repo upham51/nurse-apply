@@ -625,8 +625,53 @@
     return bonus;
   }
 
+  /* ---------------------------------------- autocomplete attribute tier */
+
+  /*
+   * The HTML autocomplete attribute is the one field signal every portal
+   * shares, because a portal that breaks it also breaks the browser's own
+   * autofill. It survives redesigns that rename ids, reword labels and move
+   * fields around, which is why it goes ahead of label matching.
+   *
+   * Identity tokens only. Nothing sensitive (bday, cc-*, passwords, one-time
+   * codes) is ever mapped. Each token reuses the existing rule of the same
+   * meaning, so formatting (phone shape, state abbreviation versus full name)
+   * is identical to the label tier, and the rule's own exclusions still apply:
+   * a field labelled "Emergency contact name" never receives the applicant's.
+   */
+  const AUTOCOMPLETE_TO_RULE = {
+    'given-name': 'firstName', 'family-name': 'lastName', 'additional-name': 'middleName',
+    'nickname': 'preferredName', 'name': 'fullName', 'email': 'email',
+    'tel': 'phone', 'tel-national': 'phone',
+    'street-address': 'street', 'address-line1': 'street', 'address-line2': 'street2',
+    'address-level2': 'city', 'address-level1': 'state', 'postal-code': 'zip',
+    'country-name': 'country'
+  };
+  const AUTOCOMPLETE_KINDS = ['text', 'select', 'combobox'];
+
+  function autocompleteToken(field) {
+    // "section-home shipping given-name": the meaning is always the last token.
+    const parts = String(field.autocomplete || '').split(/\s+/).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : '';
+  }
+
+  function autocompleteHit(field, profile, ctx) {
+    const token = autocompleteToken(field);
+    const ruleId = AUTOCOMPLETE_TO_RULE[token];
+    if (!ruleId) return null;
+    if (AUTOCOMPLETE_KINDS.indexOf(field.kind) === -1) return null;
+    let rule = null;
+    for (let i = 0; i < RULES.length; i++) { if (RULES[i].id === ruleId) { rule = RULES[i]; break; } }
+    if (!rule) return null;
+    if (rule.not && rule.not.test(field.label || '')) return null;
+    let value;
+    try { value = rule.resolve(profile, field, ctx || {}); } catch (e) { value = undefined; }
+    if (value === undefined || value === null || value === '') return null;
+    return { ruleId: 'autocomplete:' + token, value, score: 60, tier: 1 };
+  }
+
   NA.heuristics = {
-    RULES, matchField, dateHint, stateValue, boolValue,
+    RULES, matchField, autocompleteHit, dateHint, stateValue, boolValue,
     expandDegree, expandBody, yearsOfExperience, phoneFor, certField
   };
 })(typeof self !== 'undefined' ? self : this);

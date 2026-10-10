@@ -386,6 +386,7 @@
         name: el.getAttribute('name') || '',
         id: el.id || '',
         automationId: automationId(el),
+        autocomplete: (el.getAttribute('autocomplete') || '').toLowerCase().trim(),
         label: labelFor(el),
         required: el.required || el.getAttribute('aria-required') === 'true',
         options: optionsFor(el),

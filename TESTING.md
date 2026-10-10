@@ -23,6 +23,13 @@ field stays blank, that the work authorization question is answered from the pro
 that a "why do you want to work here" prompt is drafted into the drawer rather than written
 into the form.
 
+`npm run test:autocomplete` covers the two ways a field is recognised that do not depend on its
+label: the HTML `autocomplete` attribute, and the iCIMS ids that carry no word boundary
+(`icims_f_curCity`). Every label in its fixtures is one no rule can read, so a field that fills can
+only have been resolved the new way, and each positive case has a negative control. It also pins the
+refusals: an "Emergency contact name" field is not given the applicant's name, a `bday` token is
+never mapped, and `autocomplete="off"` is ignored.
+
 `npm run test:resume` parses five resumes written in different styles (single column with all-caps
 headers; pipe-separated headers with the date on its own line; a terse layout with the employer
 above the date and bare years; a Word layout that puts the section label in a left margin so it

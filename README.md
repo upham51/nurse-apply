@@ -149,17 +149,22 @@ with a reason.
 A model is available as an optional second pass that writes only into fields the local parser
 left blank. It is never on the critical path.
 
-### Three tiers of mapping
+### Tiers of mapping
 
 1. **Adapter override.** Keyed on stable platform attributes, for example Workday's
    `data-automation-id="legalNameSection_firstName"`. Adapters are additive: they add
    hints and can never block a fill.
-2. **Heuristics.** Weighted regex rules over the resolved label, which is assembled from
+2. **The `autocomplete` attribute.** The one signal every portal shares, because a portal
+   that breaks it also breaks the browser's own autofill. It survives redesigns that rename
+   ids and reword labels. Identity fields only (name, email, phone, address); nothing
+   sensitive is ever mapped. Each token reuses the label rule of the same meaning, so
+   formatting is identical and that rule's exclusions still apply.
+3. **Heuristics.** Weighted regex rules over the resolved label, which is assembled from
    the `<label>` element, `aria-label`, `aria-labelledby`, placeholder, name, id,
    `data-automation-id` and, for radios and checkboxes, the enclosing fieldset legend.
    That last one matters: without it, "Have you ever been convicted of a felony?" reads
    as a field labelled "Yes".
-3. **Model fallback.** Off by default. When enabled, NurseApply sends only the structure
+4. **Model fallback.** Off by default. When enabled, NurseApply sends only the structure
    of the form: control type, visible label, and the options a dropdown offers. The model
    returns a canonical key name, never a value. Your name, license number and immunization
    dates never leave the machine. Results are cached per form layout, so one hospital

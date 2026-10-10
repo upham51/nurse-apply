@@ -95,6 +95,7 @@
       if (adapter && typeof adapter.fieldOverride === 'function') {
         try { hit = adapter.fieldOverride(field, profile, ctx); } catch (e) { hit = null; }
       }
+      if (!hit) hit = NA.heuristics.autocompleteHit(field, profile, ctx);
       if (!hit) hit = NA.heuristics.matchField(field, profile, ctx);
 
       if (hit) {

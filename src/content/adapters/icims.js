@@ -12,6 +12,18 @@
   const S = () => NA.schema;
 
   const overrides = B.overrideTable([
+    // Current iCIMS forms use camelCase ids (icims_f_curCity). The generic
+    // patterns below rely on word boundaries, which an id like this does not
+    // have, so these match the ids directly and come first.
+    { id: 'icimsCity', test: /icims_f_curcity/i, resolve: (p) => p.identity.address.city },
+    { id: 'icimsZip', test: /icims_f_curzip/i, resolve: (p) => p.identity.address.zip },
+    { id: 'icimsStreet', test: /icims_f_curstreet/i, resolve: (p) => p.identity.address.street },
+    { id: 'icimsState', test: /icims_f_curstate/i,
+      resolve: (p, f) => NA.heuristics.stateValue(p.identity.address.state, f) },
+    { id: 'icimsMobile', test: /icims_f_mobilephone/i,
+      resolve: (p) => S().normalizePhone(p.identity.phone) },
+    { id: 'icimsStreet2', test: /PersonProfileFields\.AddressStreet2/i,
+      resolve: (p) => p.identity.address.line2 },
     { id: 'firstName', test: /\b(first_?name|fname)\b/i, resolve: (p) => p.identity.firstName },
     { id: 'lastName', test: /\b(last_?name|lname)\b/i, resolve: (p) => p.identity.lastName },
     { id: 'middle', test: /\bmiddle_?(name|initial)\b/i, resolve: () => '' },
@@ -34,7 +46,9 @@
     comboboxOptions: { openDelay: 180, searchDelay: 320, settleDelay: 150 },
 
     matches(loc, doc) {
-      if (/icims\.com/i.test(loc.hostname)) return true;
+      // jibeapply.com hosts the same iCIMS application flow for employers that
+      // use the Jibe front end.
+      if (/(icims|jibeapply)\.com/i.test(loc.hostname)) return true;
       try {
         return !!(doc && (doc.querySelector('[class^="iCIMS_"], [id^="icims"]') ||
           doc.querySelector('form[action*="icims" i]')));
