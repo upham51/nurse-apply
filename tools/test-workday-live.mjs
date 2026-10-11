@@ -45,10 +45,13 @@ document.getElementById('addJob').onclick = (e) => { e.preventDefault(); const i
  '<div data-automation-id="formField-jobTitle"><label for="'+id+'--jobTitle">Job Title</label><input id="'+id+'--jobTitle" name="jobTitle" type="text"></div>' +
  '<div data-automation-id="formField-companyName"><label for="'+id+'--companyName">Company</label><input id="'+id+'--companyName" name="companyName" type="text"></div>' +
  '<div data-automation-id="formField-location"><label for="'+id+'--location">Location</label><input id="'+id+'--location" name="location" type="text"></div>' +
- \`${date('"+id+"', 'startDate', 'From').replace(/`/g, '')}\` + '</div>'); };
+ '<div data-automation-id="formField-startDate"><label>From</label><div id="'+id+'--startDate" role="group" data-automation-id="dateInputWrapper">' +
+ '<input role="spinbutton" aria-label="Month" id="'+id+'--startDate-dateSectionMonth-input" data-automation-id="dateSectionMonth-input" type="text">' +
+ '<input role="spinbutton" aria-label="Year" id="'+id+'--startDate-dateSectionYear-input" data-automation-id="dateSectionYear-input" type="text"></div></div>' + '</div>'); };
 document.getElementById('addSchool').onclick = (e) => { e.preventDefault(); const id = 'education-' + (m++);
  document.getElementById('schools').insertAdjacentHTML('beforeend', '<div>' +
  '<div data-automation-id="formField-school"><label for="'+id+'--school">School or University</label><input id="'+id+'--school" type="text"></div>' +
+ '<div data-automation-id="formField-degree"><label for="'+id+'--degree">Degree</label><button type="button" id="'+id+'--degree" aria-haspopup="listbox">Select One</button></div>' +
  '<div data-automation-id="formField-fieldOfStudy"><label for="'+id+'--fieldOfStudy">Field of Study</label><input id="'+id+'--fieldOfStudy" type="text"></div></div>'); };
 </script></body></html>`;
 
@@ -100,6 +103,15 @@ const val = (id) => (two.find((r) => r[0] === id) || [])[1];
 check(two.filter((r) => /--jobTitle/.test(r[0])).length === 2, 'two job entries exist after Add');
 check(val('workExperience-6--companyName') === 'Providence St Vincent' && val('workExperience-7--companyName') === 'Second Hospital', 'each entry gets its own employer');
 check(val('workExperience-7--jobTitle') === 'Charge Nurse', 'second entry gets the second job title');
+check(row('--degree') && row('--degree').value === "Bachelor's", 'BSN is mapped to the Bachelor\'s option Workday actually lists');
+const dates = await pg.evaluate(async (profile) => {
+  const ad = NA.adapters.workday;
+  const mo = document.querySelector('[id$="startDate-dateSectionMonth-input"]');
+  const r = await ad.customFill({ el: mo }, '03/2019', { isoValue: '2019-03-01' });
+  const yr = document.querySelector('[id$="startDate-dateSectionYear-input"]');
+  return { ok: r && r.ok, mo: mo.value, yr: yr.value };
+}, PROFILE);
+check(dates.ok === true && Number(dates.mo) === 3 && dates.yr === '2019', 'a Workday date widget (MM / YYYY) is found and filled');
 const sel = row('resumeAttachments--attachments');
 check(!sel || sel.action !== 'fill', 'the Select files button is never filled');
 await b.close();

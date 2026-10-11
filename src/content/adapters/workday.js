@@ -37,11 +37,14 @@
     const yearEl = part('Year');
     if (!monthEl && !yearEl) return false;
 
-    let ok = true;
-    if (monthEl) ok = NA.dom.setNativeValue(monthEl, month) && ok;
-    if (dayEl) ok = NA.dom.setNativeValue(dayEl, day || '01') && ok;
-    if (yearEl) ok = NA.dom.setNativeValue(yearEl, year) && ok;
-    await NA.dom.sleep(80);
+    if (monthEl) NA.dom.setNativeValue(monthEl, month);
+    if (dayEl) NA.dom.setNativeValue(dayEl, day || '01');
+    if (yearEl) NA.dom.setNativeValue(yearEl, year);
+    await NA.dom.sleep(120);
+    // Workday stores "03" as "3", so compare as numbers, not as strings. The
+    // old string comparison reported a success as a failure.
+    const same = (el, want) => !el || Number(el.value) === Number(want);
+    const ok = same(monthEl, month) && same(dayEl, day || '01') && same(yearEl, year);
     [monthEl, dayEl, yearEl].forEach((el) => { if (el) NA.dom.markFilled(el); });
     return ok;
   }
