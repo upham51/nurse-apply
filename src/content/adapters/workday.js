@@ -47,9 +47,50 @@
   }
 
   function dateWrapperFor(el) {
+    // The spinbuttons themselves carry data-automation-id="dateSection...", which
+    // matched the selector below and made the wrapper the input itself, so the
+    // month and year boxes were never found.
+    const group = el.closest('[data-automation-id="dateInputWrapper"], [role="group"][id*="Date"]');
+    if (group) return group;
     return el.closest('[data-automation-id*="date" i], [data-automation-id="formField-startDate"], ' +
                       '[data-automation-id="formField-endDate"], .css-dateWidget') ||
            (el.parentElement && el.parentElement.closest('div'));
+  }
+
+  /**
+   * Workday's degree list is Degree in Progress, Diploma, Certificate,
+   * Associate, Bachelor's, Master's, Juris Doctor, Doctorate, Medical Doctorate.
+   * A profile says BSN or ADN, which matches none of them.
+   */
+  function workdayDegree(raw) {
+    const d = String(raw || '').toLowerCase().replace(/[^a-z]/g, '');
+    if (!d) return '';
+    if (/^(adn|asn|aas|as|aa|associate\w*)$/.test(d)) return 'Associate';
+    if (/^(bsn|bs|ba|bsc|bachelor\w*)$/.test(d)) return "Bachelor's";
+    if (/^(msn|ms|ma|mba|mph|msc|master\w*)$/.test(d)) return "Master's";
+    if (/^(dnp|phd|edd|dns|doctor\w*)$/.test(d)) return 'Doctorate';
+    if (/^(md|doctorofmedicine|medicaldoctor\w*)$/.test(d)) return 'Medical Doctorate';
+    if (/^(jd|jurisdoctor)$/.test(d)) return 'Juris Doctor';
+    if (/^diploma|^ged|^highschool/.test(d)) return 'Diploma';
+    if (/^certificate/.test(d)) return 'Certificate';
+    return '';
+  }
+
+  /**
+   * School and Field of Study are search boxes: the value only counts once a
+   * result is chosen from the list, and Workday ignores scripted clicks and
+   * arrow keys on that list. So type the search, press Enter so the matches
+   * appear, and hand the final pick to the person rather than claiming a fill.
+   */
+  async function typeSearchBox(el, text) {
+    el.focus();
+    try { el.select(); } catch (e) { /* ignore */ }
+    const ok = document.execCommand('insertText', false, String(text));
+    if (!ok) NA.dom.setNativeValue(el, String(text));
+    await NA.dom.sleep(400);
+    ['keydown', 'keypress', 'keyup'].forEach((t) => el.dispatchEvent(new KeyboardEvent(t,
+      { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true })));
+    await NA.dom.sleep(900);
   }
 
   const overrides = B.overrideTable([
@@ -106,7 +147,8 @@
     { id: 'eduSchool', test: /education.*\bschool\b|schoolItem|formField-school/i,
       resolve: (p, f, c) => (p.education[c.index] || {}).school },
     { id: 'eduDegree', test: /education.*\bdegree\b|formField-degree/i,
-      resolve: (p, f, c) => NA.heuristics.expandDegree((p.education[c.index] || {}).degree, f) },
+      resolve: (p, f, c) => workdayDegree((p.education[c.index] || {}).degree) ||
+        NA.heuristics.expandDegree((p.education[c.index] || {}).degree, f) },
     { id: 'eduField', test: /fieldOfStudy|field-of-study/i,
       resolve: (p, f, c) => (p.education[c.index] || {}).major || 'Nursing' },
     { id: 'eduGpa', test: /gradeAverage|\bgpa\b/i,
@@ -233,6 +275,10 @@
     async customFill(field, value, ctx) {
       const el = field.el;
       if (!el) return null;
+      if (/^education-\d+--(school|fieldOfStudy)$/i.test(el.id || '')) {
+        await typeSearchBox(el, value);
+        return { ok: false, reason: 'pick-from-list' };
+      }
       const isDatePart = /dateSection(Month|Day|Year)-input/i.test(
         el.getAttribute('data-automation-id') || ''
       );

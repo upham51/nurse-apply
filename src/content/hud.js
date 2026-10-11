@@ -332,6 +332,7 @@ textarea {
     if (entry.reason === 'no-profile-answer') return 'no data';
     if (entry.reason === 'no-match') return 'unmapped';
     if (entry.reason === 'write-rejected') return 'failed';
+    if (entry.reason === 'pick-from-list') return 'your pick';
     return entry.reason || 'skipped';
   }
 
@@ -339,6 +340,7 @@ textarea {
     'user-typed': 'Left alone because you had already typed here.',
     'no-match': 'No confident mapping for this field.',
     'write-rejected': 'The portal rejected the value. Fill this one by hand.',
+    'pick-from-list': 'Typed the search for you. Choose the match from the list.',
     'not-visible': 'Field was not visible when the fill ran.',
     'element-gone': 'The field disappeared mid-fill, probably a re-render.',
     'unsupported-control': 'Custom control NurseApply does not drive.',
