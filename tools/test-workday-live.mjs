@@ -80,6 +80,26 @@ check(row('--jobTitle') && row('--jobTitle').value === 'Registered Nurse III', '
 check(row('--companyName') && row('--companyName').value === 'Providence St Vincent', 'company resolved');
 check(row('--school') && /Oregon Health/.test(row('--school').value), 'school resolved');
 check(row('--fieldOfStudy') && row('--fieldOfStudy').action === 'fill', 'field of study resolved');
+// two jobs: the second entry must get the second job, including fields with no telling label
+const two = await (async () => {
+  const pg2 = await b.newPage();
+  await pg2.route('**/*', (r) => r.fulfill({ contentType: 'text/html', body: PAGE }));
+  await pg2.goto('https://wd5.myworkdaysite.com/en-US/recruiting/uw/UWhires/job/x/apply');
+  for (const s of SCRIPTS) await pg2.addScriptTag({ content: read(s) });
+  return pg2.evaluate(async (profile) => {
+    const p = NA.schema.hydrate(profile);
+    p.experience = [p.experience[0], Object.assign({}, p.experience[0], { employer: 'Second Hospital', title: 'Charge Nurse' })];
+    const ad = NA.adapters.workday;
+    await ad.prepare(document, p);
+    const fields = NA.mapper.scan(ad, document);
+    const plan = NA.mapper.plan(fields, p, {}, ad);
+    return plan.plan.filter((i) => /workExperience/.test(i.field.id)).map((i) => [i.field.id, i.value]);
+  }, PROFILE);
+})();
+const val = (id) => (two.find((r) => r[0] === id) || [])[1];
+check(two.filter((r) => /--jobTitle/.test(r[0])).length === 2, 'two job entries exist after Add');
+check(val('workExperience-6--companyName') === 'Providence St Vincent' && val('workExperience-7--companyName') === 'Second Hospital', 'each entry gets its own employer');
+check(val('workExperience-7--jobTitle') === 'Charge Nurse', 'second entry gets the second job title');
 const sel = row('resumeAttachments--attachments');
 check(!sel || sel.action !== 'fill', 'the Select files button is never filled');
 await b.close();

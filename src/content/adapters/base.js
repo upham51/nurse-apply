@@ -80,10 +80,31 @@
     };
 
     const containers = new Map();
+    // Workday numbers every repeated entry in its ids (workExperience-6--jobTitle,
+    // education-15--school). That is exact, where guessing the wrapper is not:
+    // fields with no telling label, like Location and the dates, otherwise fall
+    // back to the first entry's data. The first field seen stands in as the
+    // entry's node so entries still sort by position on the page.
+    const ID_GROUPS = { workexperience: 'experience', education: 'education',
+      license: 'licenses', licenses: 'licenses', certification: 'certifications',
+      certifications: 'certifications', reference: 'references' };
+    const byIdPrefix = new Map();
     fields.forEach((f) => {
       const el = f.el;
       if (!el) return;
       let container = null;
+      const idm = /^([A-Za-z]+)-(\d+)--/.exec(el.id || '');
+      if (idm && ID_GROUPS[idm[1].toLowerCase()]) {
+        const key = idm[1].toLowerCase() + '-' + idm[2];
+        if (!byIdPrefix.has(key)) byIdPrefix.set(key, el);
+        f._group = ID_GROUPS[idm[1].toLowerCase()];
+        container = byIdPrefix.get(key);
+        f._container = container;
+        if (!containers.has(f._group)) containers.set(f._group, []);
+        const list = containers.get(f._group);
+        if (list.indexOf(container) === -1) list.push(container);
+        return;
+      }
       if (containerSelector) container = el.closest(containerSelector);
       if (!container) {
         container = el.closest(
