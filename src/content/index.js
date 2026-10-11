@@ -136,6 +136,17 @@
     try {
       if (!profile && !(await loadState())) return null;
 
+      // A fresh install, or a reinstall from a different folder, starts with an
+      // empty profile, and every field then reads as "nothing to put here".
+      // Say so plainly, because that looks exactly like a broken extension.
+      const idn = (profile && profile.identity) || {};
+      if (!idn.firstName && !idn.lastName && !idn.email &&
+          !((profile && profile.experience) || []).length &&
+          !((profile && profile.education) || []).length) {
+        return { filled: [], skipped: [], suggested: [], total: 0, already: 0,
+          modelError: 'Profile is empty. Open Settings (toolbar icon), import your resume.' };
+      }
+
       if (typeof adapter.prepare === 'function') {
         try { await adapter.prepare(document, profile, settings); } catch (e) { /* fill what is there */ }
       }
